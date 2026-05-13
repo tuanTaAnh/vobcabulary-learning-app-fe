@@ -1,0 +1,16 @@
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: german-vocab-frontend
+    ports:
+      - "5173:5173"
+    env_file:
+      - .env.docker
+    volumes:
+      - ../src:/app/src
+      - ../public:/app/public
+      - ../index.html:/app/index.html
+      - ../vite.config.ts:/app/vite.config.ts
+    command: npm run dev -- --host 0.0.0.0

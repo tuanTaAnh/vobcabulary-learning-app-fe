@@ -1,0 +1,507 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { getVocabs, updateVocab } from "../api/client";
+import type { Vocab } from "../types";
+
+type FlashcardDirection = "german-to-meaning" | "meaning-to-german";
+
+function toSafeString(value: string | null | undefined): string {
+  return value ?? "";
+}
+
+function normalizeText(value: string | null | undefined): string {
+  return toSafeString(value).trim().toLowerCase();
+}
+
+function formatDisplayDate(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("vi-VN").format(date);
+}
+
+function isInDateRange(
+  createdAt: string,
+  fromDate: string,
+  toDate: string
+): boolean {
+  if (!fromDate && !toDate) {
+    return true;
+  }
+
+  const createdDate = new Date(createdAt);
+
+  if (Number.isNaN(createdDate.getTime())) {
+    return true;
+  }
+
+  if (fromDate) {
+    const from = new Date(`${fromDate}T00:00:00`);
+
+    if (createdDate < from) {
+      return false;
+    }
+  }
+
+  if (toDate) {
+    const to = new Date(`${toDate}T23:59:59`);
+
+    if (createdDate > to) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function FlashcardsPage() {
+  const [vocabs, setVocabs] = useState<Vocab[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isRevealed, setIsRevealed] = useState(false);
+
+  const [direction, setDirection] = useState<FlashcardDirection>(
+    "german-to-meaning"
+  );
+
+  const [searchText, setSearchText] = useState("");
+  const [selectedTopic, setSelectedTopic] = useState("all");
+  const [showStarredOnly, setShowStarredOnly] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadVocabs = useCallback(async (): Promise<void> => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const data = await getVocabs();
+      setVocabs(data);
+    } catch (err) {
+      console.error(err);
+      setError("Could not load flashcards. Please check the backend.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadVocabs();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadVocabs]);
+
+  const topicOptions = useMemo(() => {
+    const uniqueTopics = new Set<string>();
+
+    vocabs.forEach((vocab) => {
+      const topic = toSafeString(vocab.topic).trim();
+
+      if (topic) {
+        uniqueTopics.add(topic);
+      }
+    });
+
+    return Array.from(uniqueTopics).sort((a, b) => a.localeCompare(b));
+  }, [vocabs]);
+
+  const filteredVocabs = useMemo(() => {
+    const keyword = searchText.trim().toLowerCase();
+
+    return vocabs.filter((vocab) => {
+      const german = normalizeText(vocab.german);
+      const vietnamese = normalizeText(vocab.vietnamese);
+      const topic = normalizeText(vocab.topic);
+
+      const matchesSearch =
+        !keyword ||
+        german.includes(keyword) ||
+        vietnamese.includes(keyword) ||
+        topic.includes(keyword);
+
+      const matchesTopic =
+        selectedTopic === "all" || topic === selectedTopic.toLowerCase();
+
+      const matchesStar = !showStarredOnly || vocab.is_starred === true;
+
+      const matchesDate = isInDateRange(vocab.created_at, fromDate, toDate);
+
+      return matchesSearch && matchesTopic && matchesStar && matchesDate;
+    });
+  }, [vocabs, searchText, selectedTopic, showStarredOnly, fromDate, toDate]);
+
+  const activeIndex =
+    filteredVocabs.length > 0 ? currentIndex % filteredVocabs.length : 0;
+
+  const activeVocab =
+    filteredVocabs.length > 0 ? filteredVocabs[activeIndex] : null;
+
+  const frontText =
+    direction === "german-to-meaning"
+      ? activeVocab?.german ?? ""
+      : activeVocab?.vietnamese ?? "";
+
+  const backText =
+    direction === "german-to-meaning"
+      ? activeVocab?.vietnamese ?? ""
+      : activeVocab?.german ?? "";
+
+  const frontLabel =
+    direction === "german-to-meaning" ? "German" : "Meaning";
+
+  const backLabel =
+    direction === "german-to-meaning" ? "Meaning" : "German";
+
+  const resetCardState = () => {
+    setCurrentIndex(0);
+    setIsRevealed(false);
+  };
+
+  const handlePrevious = () => {
+    if (filteredVocabs.length === 0) {
+      return;
+    }
+
+    setIsRevealed(false);
+    setCurrentIndex((current) =>
+      current === 0 ? filteredVocabs.length - 1 : current - 1
+    );
+  };
+
+  const handleNext = () => {
+    if (filteredVocabs.length === 0) {
+      return;
+    }
+
+    setIsRevealed(false);
+    setCurrentIndex((current) => (current + 1) % filteredVocabs.length);
+  };
+
+  const handleShuffle = () => {
+    if (filteredVocabs.length <= 1) {
+      return;
+    }
+
+    const nextIndex = Math.floor(Math.random() * filteredVocabs.length);
+    setCurrentIndex(nextIndex);
+    setIsRevealed(false);
+  };
+
+  const handleClearFilters = () => {
+    setSearchText("");
+    setSelectedTopic("all");
+    setShowStarredOnly(false);
+    setFromDate("");
+    setToDate("");
+    resetCardState();
+  };
+
+  const handleToggleStar = async (vocab: Vocab) => {
+    const nextStarredValue = vocab.is_starred !== true;
+
+    try {
+      setVocabs((currentVocabs) =>
+        currentVocabs.map((item) =>
+          item.id === vocab.id
+            ? {
+                ...item,
+                is_starred: nextStarredValue,
+              }
+            : item
+        )
+      );
+
+      await updateVocab(vocab.id, {
+        german: vocab.german,
+        vietnamese: vocab.vietnamese,
+        examples: vocab.examples ?? "",
+        topic: vocab.topic ?? null,
+        collection_id: vocab.collection_id ?? null,
+        is_starred: nextStarredValue,
+      });
+    } catch (err) {
+      console.error(err);
+
+      setVocabs((currentVocabs) =>
+        currentVocabs.map((item) =>
+          item.id === vocab.id
+            ? {
+                ...item,
+                is_starred: vocab.is_starred,
+              }
+            : item
+        )
+      );
+
+      alert("Could not update star. Please check the backend.");
+    }
+  };
+
+  return (
+    <main className="flashcards-page-with-picker">
+      <section className="cute-card flashcards-practice-header">
+        <span className="badge">German Vocab</span>
+
+        <div className="flashcards-title-row">
+          <div>
+            <h2>Practice Your Vocabulary</h2>
+            <p>
+              Review saved words with filters, starred words, and both practice
+              directions.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="cute-button soft"
+            onClick={() => void loadVocabs()}
+            disabled={loading}
+          >
+            {loading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+
+        <div className="flashcard-direction-toggle">
+          <button
+            type="button"
+            className={
+              direction === "german-to-meaning" ? "is-active" : undefined
+            }
+            onClick={() => {
+              setDirection("german-to-meaning");
+              setIsRevealed(false);
+            }}
+          >
+            German → Meaning
+          </button>
+
+          <button
+            type="button"
+            className={
+              direction === "meaning-to-german" ? "is-active" : undefined
+            }
+            onClick={() => {
+              setDirection("meaning-to-german");
+              setIsRevealed(false);
+            }}
+          >
+            Meaning → German
+          </button>
+        </div>
+
+        <div className="flashcards-filter-grid">
+          <input
+            value={searchText}
+            onChange={(event) => {
+              setSearchText(event.target.value);
+              resetCardState();
+            }}
+            placeholder="Search German word, meaning, topic..."
+          />
+
+          <select
+            value={selectedTopic}
+            onChange={(event) => {
+              setSelectedTopic(event.target.value);
+              resetCardState();
+            }}
+          >
+            <option value="all">All topics</option>
+
+            {topicOptions.map((topic) => (
+              <option key={topic} value={topic}>
+                {topic}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(event) => {
+              setFromDate(event.target.value);
+              resetCardState();
+            }}
+            aria-label="From date"
+          />
+
+          <input
+            type="date"
+            value={toDate}
+            onChange={(event) => {
+              setToDate(event.target.value);
+              resetCardState();
+            }}
+            aria-label="To date"
+          />
+
+          <button
+            type="button"
+            className={showStarredOnly ? "cute-button primary" : "cute-button soft"}
+            onClick={() => {
+              setShowStarredOnly((currentValue) => !currentValue);
+              resetCardState();
+            }}
+          >
+            ⭐ Starred
+          </button>
+
+          <button
+            type="button"
+            className="cute-button soft"
+            onClick={handleClearFilters}
+          >
+            Clear
+          </button>
+
+          <button
+            type="button"
+            className="cute-button soft"
+            onClick={handleShuffle}
+            disabled={filteredVocabs.length <= 1}
+          >
+            Shuffle
+          </button>
+        </div>
+
+        <div className="flashcard-filter-summary">
+          Showing {filteredVocabs.length} / {vocabs.length} cards
+        </div>
+
+        {error ? <p className="collection-error">{error}</p> : null}
+      </section>
+
+      <section className="single-card-study">
+        {activeVocab ? (
+          <>
+            <div className="study-progress-row">
+              <span className="study-counter">
+                {activeIndex + 1} / {filteredVocabs.length}
+              </span>
+            </div>
+
+            <div className="study-deck">
+              <button
+                type="button"
+                className="study-nav-btn"
+                onClick={handlePrevious}
+                aria-label="Previous card"
+              >
+                ←
+              </button>
+
+              <article
+                className={`study-card ${isRevealed ? "is-revealed" : ""}`}
+                onClick={() => setIsRevealed((currentValue) => !currentValue)}
+              >
+                <button
+                  type="button"
+                  className={
+                    activeVocab.is_starred === true
+                      ? "flashcard-star-btn is-starred"
+                      : "flashcard-star-btn"
+                  }
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleToggleStar(activeVocab);
+                  }}
+                  title={
+                    activeVocab.is_starred === true
+                      ? "Remove from starred cards"
+                      : "Mark this card as important"
+                  }
+                  aria-label={
+                    activeVocab.is_starred === true
+                      ? "Remove from starred cards"
+                      : "Mark this card as important"
+                  }
+                >
+                  {activeVocab.is_starred === true ? "★" : "☆"}
+                </button>
+
+                <div
+                  className={
+                    isRevealed
+                      ? "study-card-face study-card-back"
+                      : "study-card-face study-card-front"
+                  }
+                >
+                  <span className="study-card-label">
+                    {isRevealed ? backLabel : frontLabel}
+                  </span>
+
+                  <div className="study-card-sparkle">
+                    {isRevealed ? "🌿" : "✨"}
+                  </div>
+
+                  <h3>{isRevealed ? backText : frontText}</h3>
+
+                  <small>
+                    {isRevealed ? "Tap to hide" : "Tap to reveal"}
+                  </small>
+
+                  {activeVocab.topic ? (
+                    <span className="flashcard-topic-pill">
+                      Topic: {activeVocab.topic}
+                    </span>
+                  ) : null}
+
+                  {activeVocab.created_at ? (
+                    <span className="flashcard-date-pill">
+                      Added: {formatDisplayDate(activeVocab.created_at)}
+                    </span>
+                  ) : null}
+                </div>
+              </article>
+
+              <button
+                type="button"
+                className="study-nav-btn"
+                onClick={handleNext}
+                aria-label="Next card"
+              >
+                →
+              </button>
+            </div>
+
+            {activeVocab.examples ? (
+              <details className="cute-card flashcard-examples-box">
+                <summary>Example Sentences</summary>
+
+                <div>
+                  {activeVocab.examples
+                    .split("\n")
+                    .filter((line) => line.trim())
+                    .map((line, index) => (
+                      <p key={`${line}-${index}`}>{line}</p>
+                    ))}
+                </div>
+              </details>
+            ) : null}
+          </>
+        ) : (
+          <div className="cute-card empty-deck">
+            <h3>No cards found</h3>
+            <p>
+              Try clearing the filters or add more words in the Word Book page.
+            </p>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+export default FlashcardsPage;
