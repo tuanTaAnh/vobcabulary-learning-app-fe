@@ -61,7 +61,7 @@ function MCQPage() {
 
     try {
       await recordMcq({
-        vocab_id: question.answer_id,
+        vocab_id: question.vocab_id,
         correct,
       });
     } catch {
