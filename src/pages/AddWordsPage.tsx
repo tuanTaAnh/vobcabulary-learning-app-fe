@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  createCollection,
   createVocab,
   deleteVocab,
   generateExamples,
-  getCollections,
   getVocabs,
   updateVocab,
 } from "../api/client";
-import type { Collection, Vocab } from "../types";
+import CollectionPicker from "../components/CollectionPicker";
+import { useCollectionSelection } from "../hooks/useCollectionSelection";
+import type { Vocab } from "../types";
 
 type VocabForm = {
   german: string;
@@ -79,10 +79,15 @@ function formatDate(createdAt: string) {
 }
 
 function AddWordsPage() {
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(
-    null
-  );
+  const {
+    collections,
+    collectionsLoaded,
+    collectionError,
+    selectedCollectionId,
+    activeCollection,
+    selectCollection,
+    createNewCollection,
+  } = useCollectionSelection("/add");
 
   const [vocabs, setVocabs] = useState<Vocab[]>([]);
   const [form, setForm] = useState<VocabForm>(emptyForm);
@@ -99,13 +104,6 @@ function AddWordsPage() {
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
-
-  const selectedCollection = useMemo(() => {
-    return (
-      collections.find((collection) => collection.id === selectedCollectionId) ??
-      null
-    );
-  }, [collections, selectedCollectionId]);
 
   const uniqueTopics = useMemo(() => {
     const topics = vocabs
@@ -168,45 +166,32 @@ function AddWordsPage() {
     dateFilter !== "all" ||
     showStarredOnly;
 
-  const loadCollections = useCallback(async (): Promise<void> => {
-    try {
-      const data = await getCollections();
+  const resetForm = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+  };
 
-      setCollections(data);
-
-      setSelectedCollectionId((currentId) => {
-        if (currentId !== null) {
-          return currentId;
-        }
-
-        const germanVocabCollection = data.find(
-          (collection) => collection.name.toLowerCase() === "german vocab"
-        );
-
-        if (germanVocabCollection) {
-          return germanVocabCollection.id;
-        }
-
-        return data.length > 0 ? data[0].id : null;
-      });
-    } catch (err) {
-      console.error(err);
-      setError("Could not load collections.");
-    }
-  }, []);
+  const resetFilters = () => {
+    setSearchText("");
+    setSelectedTopicFilter(topicAllValue);
+    setDateFilter("all");
+    setShowStarredOnly(false);
+  };
 
   const loadVocabs = useCallback(async (): Promise<void> => {
+    if (!selectedCollectionId) {
+      setVocabs([]);
+      setError("");
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
 
-      const data = await getVocabs(
-        selectedCollectionId
-          ? {
-              collectionId: selectedCollectionId,
-            }
-          : undefined
-      );
+      const data = await getVocabs({
+        collectionId: selectedCollectionId,
+      });
 
       setVocabs(data);
     } catch (err) {
@@ -219,16 +204,6 @@ function AddWordsPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadCollections();
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [loadCollections]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
       void loadVocabs();
     }, 0);
 
@@ -237,17 +212,11 @@ function AddWordsPage() {
     };
   }, [loadVocabs]);
 
-  const resetForm = () => {
-    setForm(emptyForm);
-    setEditingId(null);
-  };
-
-  const resetFilters = () => {
-    setSearchText("");
-    setSelectedTopicFilter(topicAllValue);
-    setDateFilter("all");
-    setShowStarredOnly(false);
-  };
+  useEffect(() => {
+    resetForm();
+    resetFilters();
+    setSelectedVocabForPopup(null);
+  }, [selectedCollectionId]);
 
   const updateFormField = (field: keyof VocabForm, value: string) => {
     setForm((currentForm) => ({
@@ -290,6 +259,11 @@ function AddWordsPage() {
   const handleSubmit = async (event: SubmitEventLike) => {
     event.preventDefault();
 
+    if (!selectedCollectionId) {
+      alert("Please choose or create a collection first.");
+      return;
+    }
+
     const german = form.german.trim();
     const vietnamese = form.vietnamese.trim();
     const topic = form.topic.trim();
@@ -307,7 +281,7 @@ function AddWordsPage() {
         german,
         vietnamese,
         examples,
-         topic: topic ? topic : null,
+        topic: topic ? topic : null,
         collection_id: selectedCollectionId,
       };
 
@@ -418,28 +392,47 @@ function AddWordsPage() {
     }
   };
 
-  const handleCreateGermanVocabCollection = async () => {
-    try {
-      const collection = await createCollection({
-        name: "German Vocab",
-        description: "Main German vocabulary collection",
-      });
-
-      await loadCollections();
-      setSelectedCollectionId(collection.id);
-    } catch (err) {
-      console.error(err);
-      alert("Could not create German Vocab collection.");
-    }
-  };
-
   return (
     <main className="wordbook-page">
+      <CollectionPicker
+        label="Word Book"
+        title="Choose Your Collection"
+        description="Select a vocabulary collection before adding, editing, and reviewing saved words."
+        collections={collections}
+        selectedCollectionId={selectedCollectionId}
+        collectionError={collectionError}
+        onSelectCollection={selectCollection}
+        onCreateCollection={createNewCollection}
+      />
+
+      {!selectedCollectionId && collectionsLoaded && collections.length === 0 ? (
+        <div className="cute-card empty-state-card">
+          <h2>Create your first collection</h2>
+          <p>
+            Use the collection drawer to create a vocabulary collection first.
+            Then you can add new words.
+          </p>
+        </div>
+      ) : null}
+
       <section className="page-grid wordbook-grid">
         <section className="cute-card form-card">
-          <span className="badge">German Vocab</span>
+          <span className="badge">
+            {activeCollection ? activeCollection.name : "No Collection"}
+          </span>
 
           <h2>{editingId ? "Edit Word" : "Add a New Word"}</h2>
+
+          {!selectedCollectionId ? (
+            <p className="form-hint">
+              Please choose or create a collection from the collection drawer
+              first.
+            </p>
+          ) : (
+            <p className="form-hint">
+              Saving into: <strong>{activeCollection?.name}</strong>
+            </p>
+          )}
 
           <form
             className="cute-form"
@@ -451,7 +444,9 @@ function AddWordsPage() {
               German Word
               <input
                 value={form.german}
-                onChange={(event) => updateFormField("german", event.target.value)}
+                onChange={(event) =>
+                  updateFormField("german", event.target.value)
+                }
                 placeholder="e.g. anfangen"
               />
             </label>
@@ -471,37 +466,12 @@ function AddWordsPage() {
               Topic optional
               <input
                 value={form.topic}
-                onChange={(event) => updateFormField("topic", event.target.value)}
+                onChange={(event) =>
+                  updateFormField("topic", event.target.value)
+                }
                 placeholder="Travel, Food, Work..."
               />
             </label>
-
-            {collections.length > 0 ? (
-              <label>
-                Collection
-                <select
-                  value={selectedCollectionId ?? ""}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setSelectedCollectionId(value ? Number(value) : null);
-                  }}
-                >
-                  {collections.map((collection) => (
-                    <option key={collection.id} value={collection.id}>
-                      {collection.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <button
-                type="button"
-                className="cute-button soft"
-                onClick={handleCreateGermanVocabCollection}
-              >
-                Create German Vocab Collection
-              </button>
-            )}
 
             <button
               type="button"
@@ -523,7 +493,11 @@ function AddWordsPage() {
               />
             </label>
 
-            <button type="submit" className="cute-button primary" disabled={saving}>
+            <button
+              type="submit"
+              className="cute-button primary"
+              disabled={saving || !selectedCollectionId}
+            >
               {saving ? "Saving..." : editingId ? "Update Word" : "Save Word"}
             </button>
 
@@ -575,7 +549,7 @@ function AddWordsPage() {
                   Your Saved Words
                 </h2>
 
-                {selectedCollection ? (
+                {activeCollection ? (
                   <p
                     style={{
                       margin: 0,
@@ -584,16 +558,27 @@ function AddWordsPage() {
                       fontSize: "14px",
                     }}
                   >
-                    Collection: {selectedCollection.name}
+                    Collection: {activeCollection.name}
                   </p>
-                ) : null}
+                ) : (
+                  <p
+                    style={{
+                      margin: 0,
+                      color: "var(--muted)",
+                      fontWeight: 800,
+                      fontSize: "14px",
+                    }}
+                  >
+                    No collection selected
+                  </p>
+                )}
               </div>
 
               <button
                 type="button"
                 className="cute-button soft"
                 onClick={() => void loadVocabs()}
-                disabled={loading}
+                disabled={loading || !selectedCollectionId}
                 style={{
                   whiteSpace: "nowrap",
                   padding: "9px 14px",
@@ -670,7 +655,9 @@ function AddWordsPage() {
 
               <select
                 value={dateFilter}
-                onChange={(event) => setDateFilter(event.target.value as DateFilter)}
+                onChange={(event) =>
+                  setDateFilter(event.target.value as DateFilter)
+                }
                 style={{
                   height: "44px",
                   flex: "0 1 160px",
@@ -690,7 +677,9 @@ function AddWordsPage() {
                 className={
                   showStarredOnly ? "cute-button primary" : "cute-button soft"
                 }
-                onClick={() => setShowStarredOnly((currentValue) => !currentValue)}
+                onClick={() =>
+                  setShowStarredOnly((currentValue) => !currentValue)
+                }
                 style={{
                   height: "44px",
                   padding: "8px 14px",
@@ -726,7 +715,7 @@ function AddWordsPage() {
               Showing {filteredVocabs.length} / {vocabs.length} words
             </p>
 
-            {error ? (
+            {error || collectionError ? (
               <p
                 style={{
                   margin: "12px 0 0",
@@ -734,7 +723,7 @@ function AddWordsPage() {
                   fontWeight: 800,
                 }}
               >
-                {error}
+                {error || collectionError}
               </p>
             ) : null}
           </div>
@@ -751,7 +740,13 @@ function AddWordsPage() {
               gap: "10px",
             }}
           >
-            {filteredVocabs.length === 0 && !loading ? (
+            {!selectedCollectionId ? (
+              <p className="empty-state">
+                Please choose a collection from the collection drawer.
+              </p>
+            ) : null}
+
+            {selectedCollectionId && filteredVocabs.length === 0 && !loading ? (
               <p className="empty-state">
                 {vocabs.length === 0
                   ? "No words yet."
@@ -987,7 +982,7 @@ function AddWordsPage() {
                 </small>
                 <strong>
                   {selectedPopupCollection?.name ??
-                    selectedCollection?.name ??
+                    activeCollection?.name ??
                     "No collection"}
                 </strong>
               </div>
