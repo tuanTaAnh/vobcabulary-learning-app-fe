@@ -9,7 +9,11 @@ import type {
   Vocab,
 } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const API_BASE = (
+  import.meta.env.VITE_API_BASE ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:8000"
+).replace(/\/$/, "");
 
 async function request<T>(
   path: string,
@@ -76,7 +80,7 @@ export function getVocabs(params?: {
 }) {
   const searchParams = new URLSearchParams();
 
-  if (params?.collectionId) {
+  if (params?.collectionId != null) {
     searchParams.set("collection_id", String(params.collectionId));
   }
 
@@ -159,7 +163,7 @@ export function generateExamples(data: {
 export function getMcq(params?: { collectionId?: number }) {
   const searchParams = new URLSearchParams();
 
-  if (params?.collectionId) {
+  if (params?.collectionId != null) {
     searchParams.set("collection_id", String(params.collectionId));
   }
 
@@ -168,13 +172,10 @@ export function getMcq(params?: { collectionId?: number }) {
   return request<McqQuestion>(`/mcq${query ? `?${query}` : ""}`);
 }
 
-export function recordMcq(data: {
-  vocab_id?: number;
-  correct: boolean;
-}) {
+export function recordMcq(data: { vocab_id?: number; correct: boolean }) {
   const searchParams = new URLSearchParams();
 
-  if (data.vocab_id) {
+  if (data.vocab_id != null) {
     searchParams.set("vocab_id", String(data.vocab_id));
   }
 
