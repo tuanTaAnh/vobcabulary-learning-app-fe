@@ -1,68 +1,114 @@
-# WortWander Frontend
+# 🌍 WortWander Frontend
 
-WortWander is an animated German vocabulary learning web app built with React, TypeScript, and Vite.
+**WortWander Frontend** is an animated German vocabulary learning web app built with **React**, **TypeScript**, and **Vite**.
 
-It helps learners save vocabulary, review flashcards, answer quizzes, filter important words, and track learning progress through a clean and playful interface.
+It helps learners save vocabulary, organize words into collections, review flashcards, answer quizzes, practice with AI scenes, and track learning progress through a clean and playful interface.
 
-Backend repository: https://github.com/tuanTaAnh/vobcabulary-learning-app-be
-
----
-
-## Overview
-
-WortWander turns German vocabulary learning into a more visual and interactive experience.
-
-Users can add German words, store meanings, generate example sentences, organize vocabulary into collections, mark important words with stars, practice with flashcards, take quizzes, and review learning statistics.
-
-The app is especially useful for beginner to intermediate German learners who want a personal vocabulary system that feels simple, visual, and enjoyable to use.
+[![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-App-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-Build-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![Vercel](https://img.shields.io/badge/Live%20Demo-Vercel-black?logo=vercel)](https://vobcabulary-learning-app-fe.vercel.app)
+[![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi)](https://github.com/tuanTaAnh/vobcabulary-learning-app-be)
 
 ---
 
-## Key Features
+## 🚀 Live Demo
 
-Word Book
+Frontend live demo:
+
+https://vobcabulary-learning-app-fe.vercel.app
+
+Frontend repository:
+
+https://github.com/tuanTaAnh/vobcabulary-learning-app-fe
+
+Backend repository:
+
+https://github.com/tuanTaAnh/vobcabulary-learning-app-be
+
+---
+
+## 📌 Overview
+
+**WortWander** turns German vocabulary learning into a more visual, interactive, and enjoyable experience.
+
+Users can add German words, store meanings, generate example sentences, organize vocabulary into collections, mark important words with stars, practice with flashcards, answer multiple-choice questions, and review learning statistics.
+
+The app is especially useful for beginner to intermediate German learners who want a personal vocabulary system that feels simple, visual, and easy to use.
+
+---
+
+## ✨ Key Features
+
+### 📚 Word Book
 
 Add, edit, delete, search, and manage German vocabulary.
 
-Collections
+### 🗂️ Collections
 
-Organize vocabulary into collections such as German Vocab, Travel, Work, Food, or custom learning groups.
+Organize vocabulary into collections such as:
 
-Search and Filters
+German Vocab
 
-Search words by German word, meaning, or topic. Filter vocabulary by topic, date, and starred status.
+Travel
 
-Starred Words
+Work
+
+Food
+
+Custom learning groups
+
+### 🔎 Search and Filters
+
+Search words by German word, meaning, or topic.
+
+Filter vocabulary by collection, date, and starred status.
+
+### ⭐ Starred Words
 
 Mark important vocabulary and review only starred words later.
 
-Flashcards
+### 🃏 Flashcards
 
-Practice German-to-meaning and meaning-to-German flashcards.
+Practice saved vocabulary in both directions:
 
-Quiz / MCQ Practice
+German to meaning
 
-Answer multiple-choice questions and track correct/wrong answers.
+Meaning to German
 
-AI Scenes
+### ✅ Quiz / MCQ Practice
+
+Answer multiple-choice questions and track correct or wrong answers.
+
+### 🤖 AI Scenes
 
 Practice vocabulary through interactive scenario-based learning.
 
-Progress Dashboard
+### 📈 Progress Dashboard
 
-Track total words, daily activity, correct answers, and wrong answers.
+Track learning progress, including:
 
-Responsive UI
+Total words
+
+Daily activity
+
+Correct answers
+
+Wrong answers
+
+Study history
+
+### 📱 Responsive UI
 
 Designed to work on desktop and smaller screens.
 
-Docker-ready Setup
+### 🐳 Docker-ready Setup
 
-Can be run locally or inside Docker.
+Run the frontend locally or inside Docker.
 
 ---
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 React
 
@@ -74,11 +120,15 @@ CSS
 
 REST API integration
 
-Docker / Docker Compose
+Docker
+
+Docker Compose
+
+Vercel
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```text
 .
@@ -103,13 +153,15 @@ Docker / Docker Compose
 └── README.md
 ```
 
+The exact structure may vary slightly depending on the current implementation, but the main frontend logic is organized under the `src` directory.
+
 ---
 
-## Environment Setup
+## ⚙️ Environment Setup
 
-This project uses `.env.example` as the environment template.
+This project uses `.env.example` as the template for environment configuration.
 
-The real environment files are not committed to Git.
+Real environment files are not committed to Git.
 
 Create your local environment files:
 
@@ -123,7 +175,7 @@ Then edit the values based on your local or Docker setup.
 Example environment variable:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE=http://localhost:8000
 ```
 
 Use `.env` for local development.
@@ -132,9 +184,9 @@ Use `.env.docker` for Docker-based execution.
 
 ---
 
-## Backend Requirement
+## 🔌 Backend Requirement
 
-The frontend requires the backend API to be running.
+The frontend requires the WortWander backend API to be running.
 
 Backend repository:
 
@@ -151,12 +203,12 @@ http://localhost:8000
 Make sure your frontend environment points to the backend correctly:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE=http://localhost:8000
 ```
 
 ---
 
-## Local Development
+## 💻 Local Development
 
 Install dependencies:
 
@@ -178,7 +230,7 @@ http://localhost:5173
 
 ---
 
-## Build for Production
+## 📦 Build for Production
 
 Create a production build:
 
@@ -194,7 +246,7 @@ npm run preview
 
 ---
 
-## Docker Usage
+## 🐳 Docker Usage
 
 Build and run the frontend with Docker Compose:
 
@@ -208,7 +260,7 @@ Stop the service:
 docker compose down
 ```
 
-View logs:
+View frontend logs:
 
 ```bash
 docker compose logs -f frontend
@@ -216,35 +268,35 @@ docker compose logs -f frontend
 
 ---
 
-## Main Pages
+## 🧭 Main Pages
 
-Word Book
+### Word Book
 
-Manage saved German vocabulary, search words, filter by topic/date/starred status, and open word details.
+Manage saved German vocabulary, search words, filter by collection/date/starred status, and open word details.
 
-Flashcards
+### Collections
+
+Create and manage vocabulary groups for different learning topics.
+
+### Flashcards
 
 Practice saved words in both German-to-meaning and meaning-to-German directions.
 
-Quiz
+### Quiz
 
 Answer MCQ questions and improve vocabulary recall.
 
-AI Scenes
+### AI Scenes
 
 Practice vocabulary through context-based learning scenarios.
 
-Progress
+### Progress
 
 View learning statistics and daily activity.
 
-Collections
-
-Manage vocabulary groups and learning categories.
-
 ---
 
-## Recommended Development Workflow
+## 🔄 Recommended Development Workflow
 
 Start the backend first:
 
@@ -266,9 +318,46 @@ Open the app:
 http://localhost:5173
 ```
 
+Open backend API documentation:
+
+```text
+http://localhost:8000/docs
+```
+
 ---
 
-## GitHub Environment Notes
+## 🚀 Deployment Notes
+
+The frontend can be deployed on Vercel or similar static hosting platforms.
+
+For production deployment, make sure the environment variable points to the deployed backend API.
+
+Example:
+
+```env
+VITE_API_BASE=https://your-backend-domain.com
+```
+
+For Vercel, add the environment variable in the Vercel dashboard instead of committing it to Git.
+
+Typical Vercel settings:
+
+```text
+Framework Preset: Vite
+Build Command: npm run build
+Output Directory: dist
+Install Command: npm install
+```
+
+After deployment, the live frontend is available at:
+
+```text
+https://vobcabulary-learning-app-fe.vercel.app
+```
+
+---
+
+## 🔐 GitHub Environment Notes
 
 Do not commit real environment files.
 
@@ -281,7 +370,7 @@ node_modules/
 dist/
 ```
 
-Only commit:
+Only commit the environment template:
 
 ```text
 .env.example
@@ -291,32 +380,22 @@ Other developers can copy `.env.example` to create their own `.env` and `.env.do
 
 ---
 
-## Deployment Notes
-
-For frontend deployment, make sure the production environment variable points to the deployed backend API.
-
-Example:
-
-```env
-VITE_API_BASE_URL=https://your-backend-domain.com
-```
-
-For Vercel or similar platforms, add the environment variable in the platform dashboard instead of committing it to Git.
-
----
-
-## Related Repository
+## 📎 Related Repository
 
 Backend repository:
 
-```text
 https://github.com/tuanTaAnh/vobcabulary-learning-app-be
-```
+
+Frontend live demo:
+
+https://vobcabulary-learning-app-fe.vercel.app
 
 ---
 
-## Author
+## 👨‍💻 Author
 
-Developed by Tuan Ta Anh
+Developed by **Tuan Ta Anh**
 
-GitHub: https://github.com/tuanTaAnh
+GitHub:
+
+https://github.com/tuanTaAnh
