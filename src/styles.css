@@ -3064,3 +3064,46 @@ textarea {
     justify-content: center;
   }
 }
+
+/* Mobile flashcard layout: put prev/next buttons below the card */
+
+@media (max-width: 760px) {
+  .study-deck {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .study-card {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    height: 360px;
+  }
+
+  .study-deck .study-nav-btn:first-child {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .study-deck .study-nav-btn:last-child {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .study-nav-btn {
+    display: inline-flex;
+    width: 100%;
+    height: 46px;
+    border-radius: 999px;
+    align-items: center;
+    justify-content: center;
+  }
+
+    .collection-drawer-tab {
+    top: 120px;
+    bottom: auto;
+    right: 0;
+    transform: none;
+  }
+}
+
