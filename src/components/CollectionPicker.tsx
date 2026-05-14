@@ -19,22 +19,47 @@ type Props = {
   }) => Promise<unknown>;
 };
 
-const collectionIconOptions = [
-  "📚",
-  "🇩🇪",
-  "🇬🇧",
-  "✈️",
-  "🍽️",
-  "💼",
-  "🎓",
-  "🧠",
-  "⭐",
-  "🏠",
-  "🛒",
-  "🚆",
-  "📝",
-  "📖",
-  "🔥",
+type CollectionIconOption = {
+  icon: string;
+  label: string;
+};
+
+const collectionIconOptions: CollectionIconOption[] = [
+  { icon: "📚", label: "General / vocabulary" },
+  { icon: "🇩🇪", label: "German" },
+  { icon: "🇬🇧", label: "English" },
+  { icon: "💬", label: "Communication" },
+  { icon: "🎓", label: "Education" },
+
+  { icon: "🏠", label: "Home" },
+  { icon: "👨‍👩‍👧", label: "Family" },
+  { icon: "🛒", label: "Shopping" },
+  { icon: "🍽️", label: "Food / restaurant" },
+  { icon: "☕", label: "Cafe / drinks" },
+
+  { icon: "✈️", label: "Travel" },
+  { icon: "🚆", label: "Transport" },
+  { icon: "🏨", label: "Hotel" },
+  { icon: "💼", label: "Work" },
+  { icon: "🏢", label: "Office" },
+
+  { icon: "💻", label: "Technology" },
+  { icon: "📄", label: "Documents" },
+  { icon: "⚖️", label: "Legal" },
+  { icon: "🏥", label: "Health" },
+  { icon: "🧠", label: "Mind / feelings" },
+
+  { icon: "🐶", label: "Animals" },
+  { icon: "🌳", label: "Nature" },
+  { icon: "🌦️", label: "Weather" },
+  { icon: "⚽", label: "Sport" },
+  { icon: "🎵", label: "Music" },
+
+  { icon: "🎬", label: "Movies" },
+  { icon: "🎮", label: "Games" },
+  { icon: "⭐", label: "Favorites" },
+  { icon: "🔥", label: "Important" },
+  { icon: "🌍", label: "World / countries" },
 ];
 
 function getCollectionIcon(collection: Collection | null | undefined): string {
@@ -63,6 +88,13 @@ function CollectionPicker({
   const activeCollection =
     collections.find((collection) => collection.id === selectedCollectionId) ??
     null;
+
+  const selectedNewIconOption = useMemo(() => {
+    return (
+      collectionIconOptions.find((option) => option.icon === newCollectionIcon) ??
+      collectionIconOptions[0]
+    );
+  }, [newCollectionIcon]);
 
   const filteredCollections = useMemo(() => {
     const keyword = collectionSearch.trim().toLowerCase();
@@ -274,27 +306,30 @@ function CollectionPicker({
         >
           <h3>Add New Collection</h3>
 
-          <div className="collection-icon-picker">
-            <span className="collection-icon-picker-label">Choose Icon</span>
+          <label className="collection-icon-dropdown-label">
+            Choose Icon
 
-            <div className="collection-icon-grid">
-              {collectionIconOptions.map((icon) => (
-                <button
-                  key={icon}
-                  type="button"
-                  className={
-                    newCollectionIcon === icon
-                      ? "collection-icon-choice is-selected"
-                      : "collection-icon-choice"
-                  }
-                  onClick={() => setNewCollectionIcon(icon)}
-                  aria-label={`Choose icon ${icon}`}
-                >
-                  {icon}
-                </button>
-              ))}
+            <div className="collection-icon-dropdown-row">
+              <span className="collection-icon-preview">
+                {selectedNewIconOption.icon}
+              </span>
+
+              <select
+                className="collection-icon-dropdown"
+                value={newCollectionIcon}
+                onChange={(event) => setNewCollectionIcon(event.target.value)}
+              >
+                {collectionIconOptions.map((option) => (
+                  <option
+                    key={`${option.icon}-${option.label}`}
+                    value={option.icon}
+                  >
+                    {option.icon} {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
+          </label>
 
           <input
             value={newCollectionName}

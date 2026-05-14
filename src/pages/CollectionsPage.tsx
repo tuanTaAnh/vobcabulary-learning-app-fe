@@ -18,28 +18,53 @@ type SubmitEventLike = {
   preventDefault: () => void;
 };
 
+type CollectionIconOption = {
+  icon: string;
+  label: string;
+};
+
 const emptyForm: CollectionForm = {
   name: "",
   description: "",
   icon: "📚",
 };
 
-const collectionIconOptions = [
-  "📚",
-  "🇩🇪",
-  "🇬🇧",
-  "✈️",
-  "🍽️",
-  "💼",
-  "🎓",
-  "🧠",
-  "⭐",
-  "🏠",
-  "🛒",
-  "🚆",
-  "📝",
-  "📖",
-  "🔥",
+const collectionIconOptions: CollectionIconOption[] = [
+  { icon: "📚", label: "General / vocabulary" },
+  { icon: "🇩🇪", label: "German" },
+  { icon: "🇬🇧", label: "English" },
+  { icon: "💬", label: "Communication" },
+  { icon: "🎓", label: "Education" },
+
+  { icon: "🏠", label: "Home" },
+  { icon: "👨‍👩‍👧", label: "Family" },
+  { icon: "🛒", label: "Shopping" },
+  { icon: "🍽️", label: "Food / restaurant" },
+  { icon: "☕", label: "Cafe / drinks" },
+
+  { icon: "✈️", label: "Travel" },
+  { icon: "🚆", label: "Transport" },
+  { icon: "🏨", label: "Hotel" },
+  { icon: "💼", label: "Work" },
+  { icon: "🏢", label: "Office" },
+
+  { icon: "💻", label: "Technology" },
+  { icon: "📄", label: "Documents" },
+  { icon: "⚖️", label: "Legal" },
+  { icon: "🏥", label: "Health" },
+  { icon: "🧠", label: "Mind / feelings" },
+
+  { icon: "🐶", label: "Animals" },
+  { icon: "🌳", label: "Nature" },
+  { icon: "🌦️", label: "Weather" },
+  { icon: "⚽", label: "Sport" },
+  { icon: "🎵", label: "Music" },
+
+  { icon: "🎬", label: "Movies" },
+  { icon: "🎮", label: "Games" },
+  { icon: "⭐", label: "Favorites" },
+  { icon: "🔥", label: "Important" },
+  { icon: "🌍", label: "World / countries" },
 ];
 
 function getCollectionIcon(icon: string | null | undefined): string {
@@ -70,6 +95,13 @@ function CollectionsPage() {
   const totalWords = useMemo(() => {
     return Object.values(wordCounts).reduce((total, count) => total + count, 0);
   }, [wordCounts]);
+
+  const selectedIconOption = useMemo(() => {
+    return (
+      collectionIconOptions.find((option) => option.icon === form.icon) ??
+      collectionIconOptions[0]
+    );
+  }, [form.icon]);
 
   const loadCollections = useCallback(async (): Promise<void> => {
     try {
@@ -242,27 +274,32 @@ function CollectionsPage() {
               void handleSubmit(event);
             }}
           >
-            <div className="collection-icon-picker">
-              <span className="collection-icon-picker-label">Choose Icon</span>
+            <label className="collection-icon-dropdown-label">
+              Choose Icon
 
-              <div className="collection-icon-grid">
-                {collectionIconOptions.map((icon) => (
-                  <button
-                    key={icon}
-                    type="button"
-                    className={
-                      form.icon === icon
-                        ? "collection-icon-choice is-selected"
-                        : "collection-icon-choice"
-                    }
-                    onClick={() => updateFormField("icon", icon)}
-                    aria-label={`Choose icon ${icon}`}
-                  >
-                    {icon}
-                  </button>
-                ))}
+              <div className="collection-icon-dropdown-row">
+                <span className="collection-icon-preview">
+                  {selectedIconOption.icon}
+                </span>
+
+                <select
+                  className="collection-icon-dropdown"
+                  value={form.icon}
+                  onChange={(event) =>
+                    updateFormField("icon", event.target.value)
+                  }
+                >
+                  {collectionIconOptions.map((option) => (
+                    <option
+                      key={`${option.icon}-${option.label}`}
+                      value={option.icon}
+                    >
+                      {option.icon} {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </div>
+            </label>
 
             <label>
               Collection Name
