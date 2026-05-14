@@ -4,11 +4,32 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { createCollection, getCollections } from "../api/client";
 import type { Collection } from "../types";
 
-type CreateCollectionPayload = {
-  name: string;
-  description?: string;
-  icon?: string;
-};
+const SESSION_COLLECTION_KEY = "wortwander_selected_collection_id";
+
+function getStoredCollectionId(): number | null {
+  const storedValue = window.sessionStorage.getItem(SESSION_COLLECTION_KEY);
+
+  if (!storedValue) {
+    return null;
+  }
+
+  const parsedValue = Number(storedValue);
+
+  if (!Number.isFinite(parsedValue)) {
+    return null;
+  }
+
+  return parsedValue;
+}
+
+function saveStoredCollectionId(collectionId: number | null) {
+  if (!collectionId) {
+    window.sessionStorage.removeItem(SESSION_COLLECTION_KEY);
+    return;
+  }
+
+  window.sessionStorage.setItem(SESSION_COLLECTION_KEY, String(collectionId));
+}
 
 export function useCollectionSelection(basePath: string) {
   const navigate = useNavigate();
@@ -29,8 +50,10 @@ export function useCollectionSelection(basePath: string) {
   const [collectionError, setCollectionError] = useState("");
 
   const activeCollection = useMemo(() => {
-    return collections.find(
-      (collection) => collection.id === selectedCollectionId
+    return (
+      collections.find(
+        (collection) => collection.id === selectedCollectionId
+      ) ?? null
     );
   }, [collections, selectedCollectionId]);
 
@@ -39,24 +62,55 @@ export function useCollectionSelection(basePath: string) {
   }, []);
 
   useEffect(() => {
-    if (!collectionsLoaded) return;
-
-    if (!selectedCollectionId && collections.length > 0) {
-      navigate(`${basePath}?collectionId=${collections[0].id}`, {
-        replace: true,
-      });
+    if (!collectionsLoaded) {
       return;
     }
 
-    if (
-      selectedCollectionId &&
-      collections.length > 0 &&
-      !collections.some((collection) => collection.id === selectedCollectionId)
-    ) {
-      navigate(`${basePath}?collectionId=${collections[0].id}`, {
-        replace: true,
-      });
+    if (collections.length === 0) {
+      saveStoredCollectionId(null);
+
+      if (selectedCollectionId) {
+        navigate(basePath, {
+          replace: true,
+        });
+      }
+
+      return;
     }
+
+    if (selectedCollectionId) {
+      const selectedCollectionStillExists = collections.some(
+        (collection) => collection.id === selectedCollectionId
+      );
+
+      if (selectedCollectionStillExists) {
+        saveStoredCollectionId(selectedCollectionId);
+        return;
+      }
+    }
+
+    const storedCollectionId = getStoredCollectionId();
+
+    if (storedCollectionId) {
+      const storedCollectionStillExists = collections.some(
+        (collection) => collection.id === storedCollectionId
+      );
+
+      if (storedCollectionStillExists) {
+        navigate(`${basePath}?collectionId=${storedCollectionId}`, {
+          replace: true,
+        });
+        return;
+      }
+    }
+
+    const fallbackCollectionId = collections[0].id;
+
+    saveStoredCollectionId(fallbackCollectionId);
+
+    navigate(`${basePath}?collectionId=${fallbackCollectionId}`, {
+      replace: true,
+    });
   }, [collectionsLoaded, collections, selectedCollectionId, basePath, navigate]);
 
   async function loadCollections() {
@@ -77,20 +131,31 @@ export function useCollectionSelection(basePath: string) {
 
   function selectCollection(collectionId: string) {
     if (!collectionId) {
+      saveStoredCollectionId(null);
       navigate(basePath);
       return;
+    }
+
+    const parsedId = Number(collectionId);
+
+    if (Number.isFinite(parsedId)) {
+      saveStoredCollectionId(parsedId);
     }
 
     navigate(`${basePath}?collectionId=${collectionId}`);
   }
 
-  async function createNewCollection(data: CreateCollectionPayload) {
+  async function createNewCollection(data: {
+    name: string;
+    description?: string;
+    icon?: string;
+  }) {
     const created = await createCollection(data);
-    const updatedCollections = await loadCollections();
+    await loadCollections();
 
-    if (updatedCollections.length > 0) {
-      navigate(`${basePath}?collectionId=${created.id}`);
-    }
+    saveStoredCollectionId(created.id);
+
+    navigate(`${basePath}?collectionId=${created.id}`);
 
     return created;
   }

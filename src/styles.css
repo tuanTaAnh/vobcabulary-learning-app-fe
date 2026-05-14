@@ -3107,3 +3107,139 @@ textarea {
   }
 }
 
+.mcq-answer-link {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 950;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.mcq-answer-link:hover {
+  opacity: 0.75;
+}
+
+.word-detail-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 24, 39, 0.25);
+  backdrop-filter: blur(4px);
+}
+
+.word-detail-modal {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  border-radius: 30px;
+  padding: 24px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 253, 247, 0.98),
+    rgba(255, 248, 239, 0.98)
+  );
+}
+
+.word-detail-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.word-detail-modal-header h2 {
+  margin: 8px 0 6px;
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+.word-detail-modal-header p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.word-detail-modal-close {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: none;
+  background: #f9d9df;
+  color: #8b2e41;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(68, 72, 101, 0.12);
+}
+
+.word-detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.word-detail-info-grid div {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 2px solid rgba(233, 227, 213, 0.9);
+}
+
+.word-detail-info-grid small {
+  display: block;
+  color: var(--muted);
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+.word-detail-examples {
+  margin-bottom: 18px;
+}
+
+.word-detail-examples h3 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.word-detail-examples p {
+  margin: 0 0 10px;
+  padding: 13px 15px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 2px solid rgba(233, 227, 213, 0.8);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.word-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .word-detail-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .word-detail-modal {
+    padding: 20px;
+    border-radius: 24px;
+  }
+
+  .word-detail-modal-header h2 {
+    font-size: 28px;
+  }
+}

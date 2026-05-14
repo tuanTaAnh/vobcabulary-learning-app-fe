@@ -20,6 +20,7 @@ export interface Vocab {
 
 export interface McqQuestion {
   vocab_id?: number;
+  answer_id?: number;
   question?: string;
   prompt?: string;
   options: string[];

@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  createCollection,
-  getCollections,
-  getVocabs,
-  updateVocab,
-} from "../api/client";
+
+import { getVocabs, updateVocab } from "../api/client";
 import CollectionPicker from "../components/CollectionPicker";
-import type { Collection, Vocab } from "../types";
+import { useCollectionSelection } from "../hooks/useCollectionSelection";
+import type { Vocab } from "../types";
 
 type FlashcardDirection = "german-to-meaning" | "meaning-to-german";
 
@@ -16,17 +13,6 @@ function toSafeString(value: string | null | undefined): string {
 
 function normalizeText(value: string | null | undefined): string {
   return toSafeString(value).trim().toLowerCase();
-}
-
-function splitExampleLines(value: string | null | undefined): string[] {
-  if (!value) {
-    return [];
-  }
-
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
 }
 
 function isInDateRange(
@@ -63,18 +49,43 @@ function isInDateRange(
   return true;
 }
 
+function shuffleArray<T>(items: T[]): T[] {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    const temp = shuffled[index];
+
+    shuffled[index] = shuffled[randomIndex];
+    shuffled[randomIndex] = temp;
+  }
+
+  return shuffled;
+}
+
+function getExampleLines(examples: string | null | undefined): string[] {
+  return toSafeString(examples)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function FlashcardsPage() {
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [collectionsLoaded, setCollectionsLoaded] = useState(false);
-  const [collectionError, setCollectionError] = useState("");
-  const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(
-    null
-  );
+  const {
+    collections,
+    collectionsLoaded,
+    collectionError,
+    selectedCollectionId,
+    activeCollection,
+    selectCollection,
+    createNewCollection,
+  } = useCollectionSelection("/cards");
 
   const [vocabs, setVocabs] = useState<Vocab[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRevealed, setIsRevealed] = useState(false);
-  const [examplesVocab, setExamplesVocab] = useState<Vocab | null>(null);
+  const [shuffledIds, setShuffledIds] = useState<number[]>([]);
+  const [isExamplesModalOpen, setIsExamplesModalOpen] = useState(false);
 
   const [direction, setDirection] = useState<FlashcardDirection>(
     "german-to-meaning"
@@ -89,76 +100,18 @@ function FlashcardsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const activeCollection = useMemo(() => {
-    return (
-      collections.find((collection) => collection.id === selectedCollectionId) ??
-      null
-    );
-  }, [collections, selectedCollectionId]);
-
-  const exampleLines = useMemo(() => {
-    return splitExampleLines(examplesVocab?.examples);
-  }, [examplesVocab]);
-
   const resetCardState = () => {
     setCurrentIndex(0);
     setIsRevealed(false);
-    setExamplesVocab(null);
+    setIsExamplesModalOpen(false);
   };
-
-  const resetFilters = () => {
-    setSearchText("");
-    setSelectedTopic("all");
-    setShowStarredOnly(false);
-    setFromDate("");
-    setToDate("");
-    resetCardState();
-  };
-
-  const loadCollections = useCallback(async (): Promise<void> => {
-    try {
-      setCollectionError("");
-
-      const data = await getCollections();
-
-      setCollections(data);
-      setCollectionsLoaded(true);
-
-      setSelectedCollectionId((currentId) => {
-        if (currentId !== null) {
-          const currentStillExists = data.some(
-            (collection) => collection.id === currentId
-          );
-
-          if (currentStillExists) {
-            return currentId;
-          }
-        }
-
-        const germanVocabCollection = data.find(
-          (collection) => collection.name.toLowerCase() === "german vocab"
-        );
-
-        if (germanVocabCollection) {
-          return germanVocabCollection.id;
-        }
-
-        return data.length > 0 ? data[0].id : null;
-      });
-    } catch (err) {
-      console.error(err);
-      setCollectionsLoaded(true);
-      setCollectionError("Could not load collections.");
-    }
-  }, []);
 
   const loadVocabs = useCallback(async (): Promise<void> => {
     if (!selectedCollectionId) {
       setVocabs([]);
       setError("");
-      setCurrentIndex(0);
-      setIsRevealed(false);
-      setExamplesVocab(null);
+      setShuffledIds([]);
+      resetCardState();
       return;
     }
 
@@ -171,9 +124,10 @@ function FlashcardsPage() {
       });
 
       setVocabs(data);
+      setShuffledIds([]);
       setCurrentIndex(0);
       setIsRevealed(false);
-      setExamplesVocab(null);
+      setIsExamplesModalOpen(false);
     } catch (err) {
       console.error(err);
       setError("Could not load flashcards. Please check the backend.");
@@ -181,16 +135,6 @@ function FlashcardsPage() {
       setLoading(false);
     }
   }, [selectedCollectionId]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadCollections();
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [loadCollections]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -203,24 +147,14 @@ function FlashcardsPage() {
   }, [loadVocabs]);
 
   useEffect(() => {
-    resetFilters();
+    setSearchText("");
+    setSelectedTopic("all");
+    setShowStarredOnly(false);
+    setFromDate("");
+    setToDate("");
+    setShuffledIds([]);
+    resetCardState();
   }, [selectedCollectionId]);
-
-  const selectCollection = (collectionId: string) => {
-    setSelectedCollectionId(collectionId ? Number(collectionId) : null);
-  };
-
-  const createNewCollection = async (data: {
-    name: string;
-    description?: string;
-  }) => {
-    const collection = await createCollection(data);
-
-    await loadCollections();
-    setSelectedCollectionId(collection.id);
-
-    return collection;
-  };
 
   const topicOptions = useMemo(() => {
     const uniqueTopics = new Set<string>();
@@ -261,11 +195,31 @@ function FlashcardsPage() {
     });
   }, [vocabs, searchText, selectedTopic, showStarredOnly, fromDate, toDate]);
 
+  const practiceVocabs = useMemo(() => {
+    if (shuffledIds.length === 0) {
+      return filteredVocabs;
+    }
+
+    const vocabMap = new Map(filteredVocabs.map((vocab) => [vocab.id, vocab]));
+
+    const shuffledVocabs = shuffledIds
+      .map((id) => vocabMap.get(id))
+      .filter((vocab): vocab is Vocab => Boolean(vocab));
+
+    const remainingVocabs = filteredVocabs.filter(
+      (vocab) => !shuffledIds.includes(vocab.id)
+    );
+
+    return [...shuffledVocabs, ...remainingVocabs];
+  }, [filteredVocabs, shuffledIds]);
+
   const activeIndex =
-    filteredVocabs.length > 0 ? currentIndex % filteredVocabs.length : 0;
+    practiceVocabs.length > 0 ? currentIndex % practiceVocabs.length : 0;
 
   const activeVocab =
-    filteredVocabs.length > 0 ? filteredVocabs[activeIndex] : null;
+    practiceVocabs.length > 0 ? practiceVocabs[activeIndex] : null;
+
+  const activeExampleLines = getExampleLines(activeVocab?.examples);
 
   const frontText =
     direction === "german-to-meaning"
@@ -284,25 +238,27 @@ function FlashcardsPage() {
     direction === "german-to-meaning" ? "Meaning" : "German";
 
   const handlePrevious = () => {
-    if (filteredVocabs.length === 0) {
+    if (practiceVocabs.length === 0) {
       return;
     }
 
     setIsRevealed(false);
-    setExamplesVocab(null);
+    setIsExamplesModalOpen(false);
+
     setCurrentIndex((current) =>
-      current === 0 ? filteredVocabs.length - 1 : current - 1
+      current === 0 ? practiceVocabs.length - 1 : current - 1
     );
   };
 
   const handleNext = () => {
-    if (filteredVocabs.length === 0) {
+    if (practiceVocabs.length === 0) {
       return;
     }
 
     setIsRevealed(false);
-    setExamplesVocab(null);
-    setCurrentIndex((current) => (current + 1) % filteredVocabs.length);
+    setIsExamplesModalOpen(false);
+
+    setCurrentIndex((current) => (current + 1) % practiceVocabs.length);
   };
 
   const handleShuffle = () => {
@@ -310,14 +266,22 @@ function FlashcardsPage() {
       return;
     }
 
-    const nextIndex = Math.floor(Math.random() * filteredVocabs.length);
-    setCurrentIndex(nextIndex);
+    const shuffledVocabs = shuffleArray(filteredVocabs);
+
+    setShuffledIds(shuffledVocabs.map((vocab) => vocab.id));
+    setCurrentIndex(0);
     setIsRevealed(false);
-    setExamplesVocab(null);
+    setIsExamplesModalOpen(false);
   };
 
   const handleClearFilters = () => {
-    resetFilters();
+    setSearchText("");
+    setSelectedTopic("all");
+    setShowStarredOnly(false);
+    setFromDate("");
+    setToDate("");
+    setShuffledIds([]);
+    resetCardState();
   };
 
   const handleToggleStar = async (vocab: Vocab) => {
@@ -341,6 +305,7 @@ function FlashcardsPage() {
         examples: vocab.examples ?? "",
         topic: vocab.topic ?? null,
         collection_id: vocab.collection_id ?? selectedCollectionId,
+        swipe_count: vocab.swipe_count,
         is_starred: nextStarredValue,
       });
     } catch (err) {
@@ -417,7 +382,7 @@ function FlashcardsPage() {
             onClick={() => {
               setDirection("german-to-meaning");
               setIsRevealed(false);
-              setExamplesVocab(null);
+              setIsExamplesModalOpen(false);
             }}
           >
             German → Meaning
@@ -431,7 +396,7 @@ function FlashcardsPage() {
             onClick={() => {
               setDirection("meaning-to-german");
               setIsRevealed(false);
-              setExamplesVocab(null);
+              setIsExamplesModalOpen(false);
             }}
           >
             Meaning → German
@@ -443,6 +408,7 @@ function FlashcardsPage() {
             value={searchText}
             onChange={(event) => {
               setSearchText(event.target.value);
+              setShuffledIds([]);
               resetCardState();
             }}
             placeholder="Search German word, meaning, topic..."
@@ -452,6 +418,7 @@ function FlashcardsPage() {
             value={selectedTopic}
             onChange={(event) => {
               setSelectedTopic(event.target.value);
+              setShuffledIds([]);
               resetCardState();
             }}
           >
@@ -469,6 +436,7 @@ function FlashcardsPage() {
             value={fromDate}
             onChange={(event) => {
               setFromDate(event.target.value);
+              setShuffledIds([]);
               resetCardState();
             }}
             aria-label="From date"
@@ -479,6 +447,7 @@ function FlashcardsPage() {
             value={toDate}
             onChange={(event) => {
               setToDate(event.target.value);
+              setShuffledIds([]);
               resetCardState();
             }}
             aria-label="To date"
@@ -491,6 +460,7 @@ function FlashcardsPage() {
             }
             onClick={() => {
               setShowStarredOnly((currentValue) => !currentValue);
+              setShuffledIds([]);
               resetCardState();
             }}
           >
@@ -534,7 +504,7 @@ function FlashcardsPage() {
           <>
             <div className="study-progress-row">
               <span className="study-counter">
-                {activeIndex + 1} / {filteredVocabs.length}
+                {activeIndex + 1} / {practiceVocabs.length}
               </span>
             </div>
 
@@ -594,23 +564,20 @@ function FlashcardsPage() {
 
                   <h3>{isRevealed ? backText : frontText}</h3>
 
-                  {isRevealed &&
-                  splitExampleLines(activeVocab.examples).length > 0 ? (
+                  <small>{isRevealed ? "Tap to hide" : "Tap to reveal"}</small>
+
+                  {isRevealed && activeExampleLines.length > 0 ? (
                     <button
                       type="button"
-                      className="examples-open-btn flashcard-center-example-btn"
+                      className="cute-button soft flashcard-center-example-btn"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setExamplesVocab(activeVocab);
+                        setIsExamplesModalOpen(true);
                       }}
                     >
                       Example Sentences
                     </button>
-                  ) : (
-                    <small>
-                      {isRevealed ? "Tap to hide" : "Tap to reveal"}
-                    </small>
-                  )}
+                  ) : null}
 
                   {activeVocab.topic ? (
                     <span className="flashcard-topic-pill">
@@ -640,39 +607,40 @@ function FlashcardsPage() {
         )}
       </section>
 
-      {examplesVocab ? (
+      {isExamplesModalOpen && activeVocab ? (
         <div
           className="examples-modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Example sentences for ${examplesVocab.german}`}
-          onClick={() => setExamplesVocab(null)}
+          role="presentation"
+          onClick={() => setIsExamplesModalOpen(false)}
         >
           <section
             className="examples-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Example sentences"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="examples-modal-header">
               <div>
                 <span className="badge">Example Sentences</span>
-                <h3>{examplesVocab.german}</h3>
-                <p>{examplesVocab.vietnamese}</p>
+                <h3>{activeVocab.german}</h3>
+                <p>{activeVocab.vietnamese}</p>
               </div>
 
               <button
                 type="button"
                 className="examples-modal-close"
-                onClick={() => setExamplesVocab(null)}
-                aria-label="Close example sentences"
+                onClick={() => setIsExamplesModalOpen(false)}
+                aria-label="Close examples modal"
               >
                 ×
               </button>
             </div>
 
             <div className="examples-modal-body">
-              {exampleLines.length > 0 ? (
-                exampleLines.map((line, index) => (
-                  <div className="example-line" key={`${line}-${index}`}>
+              {activeExampleLines.length > 0 ? (
+                activeExampleLines.map((line, index) => (
+                  <div key={`${line}-${index}`} className="example-line">
                     <span>{index + 1}</span>
                     <p>{line}</p>
                   </div>
