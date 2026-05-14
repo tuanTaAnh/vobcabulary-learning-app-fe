@@ -1,361 +1,256 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import {
   createCollection,
-  createVocab,
-  deleteVocab,
-  generateExamples,
+  deleteCollection,
   getCollections,
   getVocabs,
-  updateVocab,
+  updateCollection,
 } from "../api/client";
-import type { Collection, Vocab } from "../types";
+import type { Collection } from "../types";
 
-type VocabForm = {
-  german: string;
-  vietnamese: string;
-  topic: string;
-  examples: string;
+type CollectionForm = {
+  name: string;
+  description: string;
 };
 
-type SubmitEventLike = {
-  preventDefault: () => void;
-};
-
-const emptyForm: VocabForm = {
-  german: "",
-  vietnamese: "",
-  topic: "",
-  examples: "",
+const emptyForm: CollectionForm = {
+  name: "",
+  description: "",
 };
 
 function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(
-    null
-  );
-
-  const [vocabs, setVocabs] = useState<Vocab[]>([]);
-  const [form, setForm] = useState<VocabForm>(emptyForm);
+  const [wordCounts, setWordCounts] = useState<Record<number, number>>({});
+  const [form, setForm] = useState<CollectionForm>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
 
-  const selectedCollection = useMemo(() => {
-    return (
-      collections.find((collection) => collection.id === selectedCollectionId) ??
-      null
-    );
-  }, [collections, selectedCollectionId]);
+  const totalWords = useMemo(() => {
+    return Object.values(wordCounts).reduce((total, count) => total + count, 0);
+  }, [wordCounts]);
+
+  const sortedCollections = useMemo(() => {
+    return [...collections].sort((a, b) => a.name.localeCompare(b.name));
+  }, [collections]);
 
   const loadCollections = useCallback(async (): Promise<void> => {
-    try {
-      const data = await getCollections();
-
-      setCollections(data);
-
-      setSelectedCollectionId((currentId) => {
-        if (currentId !== null) {
-          return currentId;
-        }
-
-        const germanVocabCollection = data.find(
-          (collection) => collection.name.toLowerCase() === "german vocab"
-        );
-
-        if (germanVocabCollection) {
-          return germanVocabCollection.id;
-        }
-
-        return data.length > 0 ? data[0].id : null;
-      });
-    } catch (err) {
-      console.error(err);
-      setError("Could not load collections.");
-    }
-  }, []);
-
-  const loadVocabs = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
       setError("");
 
-      const data = await getVocabs(
-        selectedCollectionId
-          ? {
-              collectionId: selectedCollectionId,
-            }
-          : undefined
+      const collectionData = await getCollections();
+      setCollections(collectionData);
+
+      const countEntries = await Promise.all(
+        collectionData.map(async (collection) => {
+          try {
+            const vocabs = await getVocabs({
+              collectionId: collection.id,
+            });
+
+            return [collection.id, vocabs.length] as const;
+          } catch (err) {
+            console.error(err);
+            return [collection.id, 0] as const;
+          }
+        })
       );
 
-      setVocabs(data);
+      setWordCounts(Object.fromEntries(countEntries));
     } catch (err) {
       console.error(err);
-      setError("Could not load saved words.");
+      setError("Could not load collections. Please check the backend.");
     } finally {
       setLoading(false);
     }
-  }, [selectedCollectionId]);
+  }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadCollections();
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
+    void loadCollections();
   }, [loadCollections]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadVocabs();
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [loadVocabs]);
-
-  const resetForm = () => {
-    setForm(emptyForm);
-    setEditingId(null);
-  };
-
-  const updateFormField = (field: keyof VocabForm, value: string) => {
+  const updateFormField = (field: keyof CollectionForm, value: string) => {
     setForm((currentForm) => ({
       ...currentForm,
       [field]: value,
     }));
   };
 
-  const handleGenerateExamples = async () => {
-    const german = form.german.trim();
-    const vietnamese = form.vietnamese.trim();
-
-    if (!german || !vietnamese) {
-      alert("Please enter both German word and meaning first.");
-      return;
-    }
-
-    try {
-      setGenerating(true);
-
-      const response = await generateExamples({
-        german,
-        vietnamese,
-        topic: form.topic.trim() || undefined,
-        level: "A2",
-      });
-
-      setForm((currentForm) => ({
-        ...currentForm,
-        examples: response.examples.join("\n"),
-      }));
-    } catch (err) {
-      console.error(err);
-      alert("Could not generate examples. Please check the backend.");
-    } finally {
-      setGenerating(false);
-    }
+  const resetForm = () => {
+    setForm(emptyForm);
+    setEditingId(null);
   };
 
-  const handleSubmit = async (event: SubmitEventLike) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const german = form.german.trim();
-    const vietnamese = form.vietnamese.trim();
-    const topic = form.topic.trim();
-    const examples = form.examples.trim();
+    const name = form.name.trim();
+    const description = form.description.trim();
 
-    if (!german || !vietnamese) {
-      alert("Please enter German word and meaning.");
+    if (!name) {
+      alert("Please enter a collection name.");
       return;
     }
 
     try {
       setSaving(true);
 
-      const payload = {
-        german,
-        vietnamese,
-        examples,
-        topic: topic || undefined,
-        collection_id: selectedCollectionId,
-      };
-
       if (editingId) {
-        await updateVocab(editingId, payload);
+        await updateCollection(editingId, {
+          name,
+          description: description || undefined,
+        });
       } else {
-        await createVocab(payload);
+        await createCollection({
+          name,
+          description: description || undefined,
+        });
       }
 
       resetForm();
-      await loadVocabs();
+      await loadCollections();
     } catch (err) {
       console.error(err);
-      alert("Could not save the word. Please check the backend.");
+      alert("Could not save collection. Please check the backend.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleEdit = (vocab: Vocab) => {
-    setEditingId(vocab.id);
+  const handleEdit = (collection: Collection) => {
+    setEditingId(collection.id);
 
     setForm({
-      german: vocab.german ?? "",
-      vietnamese: vocab.vietnamese ?? "",
-      topic: vocab.topic ?? "",
-      examples: vocab.examples ?? "",
+      name: collection.name ?? "",
+      description: collection.description ?? "",
     });
   };
 
-  const handleDelete = async (id: number) => {
-    const confirmed = window.confirm("Delete this word?");
+  const handleDelete = async (collection: Collection) => {
+    const count = wordCounts[collection.id] ?? 0;
+
+    const confirmed = window.confirm(
+      count > 0
+        ? `Delete "${collection.name}"? This collection has ${count} saved words.`
+        : `Delete "${collection.name}"?`
+    );
 
     if (!confirmed) {
       return;
     }
 
     try {
-      await deleteVocab(id);
+      await deleteCollection(collection.id);
 
-      if (editingId === id) {
+      if (editingId === collection.id) {
         resetForm();
       }
 
-      await loadVocabs();
-    } catch (err) {
-      console.error(err);
-      alert("Could not delete this word. Please check the backend.");
-    }
-  };
-
-  const handleCreateGermanVocabCollection = async () => {
-    try {
-      const collection = await createCollection({
-        name: "German Vocab",
-        description: "Main German vocabulary collection",
-      });
-
       await loadCollections();
-      setSelectedCollectionId(collection.id);
     } catch (err) {
       console.error(err);
-      alert("Could not create German Vocab collection.");
+      alert(
+        "Could not delete this collection. It may still contain saved words, or the backend blocked deletion."
+      );
     }
   };
 
   return (
-    <main className="page">
-      <section
-        className="content-grid"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(320px, 0.9fr) minmax(420px, 1.1fr)",
-          gap: "1.4rem",
-          alignItems: "start",
-        }}
-      >
-        <section className="card soft-card saved-words-panel">
-          <div className="section-pill">German Vocab</div>
+    <main className="collections-page">
+      <section className="cute-card page-header-card">
+        <div>
+          <span className="badge">Collections</span>
+          <h2>Manage Vocabulary Collections</h2>
+          <p>
+            Create, edit, and organize your vocabulary collections for Word Book,
+            Flashcards, and Quiz.
+          </p>
+        </div>
 
-          <h1>{editingId ? "Edit Word" : "Add a New Word"}</h1>
+        <button
+          type="button"
+          className="cute-button soft"
+          onClick={() => void loadCollections()}
+          disabled={loading}
+        >
+          {loading ? "Loading..." : "Refresh"}
+        </button>
+      </section>
 
-          <form
-            onSubmit={(event) => {
-              void handleSubmit(event);
-            }}
-            className="form-stack"
-          >
+      <section className="stats-grid" style={{ marginBottom: "16px" }}>
+        <article className="cute-card stat-card">
+          <span className="stat-icon">📚</span>
+          <small>Total Collections</small>
+          <strong>{collections.length}</strong>
+        </article>
+
+        <article className="cute-card stat-card">
+          <span className="stat-icon">📖</span>
+          <small>Total Words</small>
+          <strong>{totalWords}</strong>
+        </article>
+
+        <article className="cute-card stat-card">
+          <span className="stat-icon">⭐</span>
+          <small>Active Page</small>
+          <strong>Collections</strong>
+        </article>
+
+        <article className="cute-card stat-card">
+          <span className="stat-icon">🧠</span>
+          <small>Used By</small>
+          <strong>3 modes</strong>
+        </article>
+      </section>
+
+      <section className="page-grid">
+        <section className="cute-card form-card">
+          <span className="badge">
+            {editingId ? "Edit Collection" : "New Collection"}
+          </span>
+
+          <h2>{editingId ? "Update Collection" : "Add a Collection"}</h2>
+
+          <form className="cute-form" onSubmit={handleSubmit}>
             <label>
-              German Word
+              Collection Name
               <input
-                value={form.german}
-                onChange={(event) => updateFormField("german", event.target.value)}
-                placeholder="e.g. anfangen"
+                value={form.name}
+                onChange={(event) => updateFormField("name", event.target.value)}
+                placeholder="e.g. Travel German"
               />
             </label>
 
             <label>
-              Meaning
-              <input
-                value={form.vietnamese}
-                onChange={(event) =>
-                  updateFormField("vietnamese", event.target.value)
-                }
-                placeholder="e.g. to begin"
-              />
-            </label>
-
-            <label>
-              Topic optional
-              <input
-                value={form.topic}
-                onChange={(event) => updateFormField("topic", event.target.value)}
-                placeholder="Travel, Food, Work..."
-              />
-            </label>
-
-            {collections.length > 0 ? (
-              <label>
-                Collection
-                <select
-                  value={selectedCollectionId ?? ""}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setSelectedCollectionId(value ? Number(value) : null);
-                  }}
-                >
-                  {collections.map((collection) => (
-                    <option key={collection.id} value={collection.id}>
-                      {collection.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={handleCreateGermanVocabCollection}
-              >
-                Create German Vocab Collection
-              </button>
-            )}
-
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={handleGenerateExamples}
-              disabled={generating}
-            >
-              {generating ? "Generating..." : "Generate Examples"}
-            </button>
-
-            <label>
-              Example Sentences
+              Description optional
               <textarea
-                value={form.examples}
+                value={form.description}
                 onChange={(event) =>
-                  updateFormField("examples", event.target.value)
+                  updateFormField("description", event.target.value)
                 }
-                placeholder="Ich fange um 8 Uhr an."
-                rows={7}
+                placeholder="Short note about this collection..."
+                style={{
+                  minHeight: "120px",
+                }}
               />
             </label>
 
-            <button type="submit" className="primary-button" disabled={saving}>
-              {saving ? "Saving..." : editingId ? "Update Word" : "Save Word"}
+            <button type="submit" className="cute-button primary" disabled={saving}>
+              {saving
+                ? "Saving..."
+                : editingId
+                  ? "Update Collection"
+                  : "Create Collection"}
             </button>
 
             {editingId ? (
               <button
                 type="button"
-                className="secondary-button"
+                className="cute-button soft"
                 onClick={resetForm}
               >
                 Cancel Edit
@@ -364,150 +259,129 @@ function CollectionsPage() {
           </form>
         </section>
 
-        <section className="card soft-card saved-words-panel">
-          <div className="saved-words-header">
+        <section
+          className="cute-card"
+          style={{
+            minHeight: "520px",
+            maxHeight: "calc(100vh - 220px)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              flex: "0 0 auto",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "16px",
+              marginBottom: "16px",
+            }}
+          >
             <div>
-              <h1>Your Saved Words</h1>
-
-              {selectedCollection ? (
-                <p
-                  style={{
-                    margin: 0,
-                    opacity: 0.65,
-                    fontWeight: 700,
-                  }}
-                >
-                  Collection: {selectedCollection.name}
-                </p>
-              ) : null}
+              <span className="badge">Saved Collections</span>
+              <h2
+                style={{
+                  margin: "6px 0 6px",
+                  fontSize: "26px",
+                }}
+              >
+                Your Collections
+              </h2>
+              <p
+                style={{
+                  margin: 0,
+                  color: "var(--muted)",
+                  fontWeight: 800,
+                }}
+              >
+                Showing {sortedCollections.length} collections
+              </p>
             </div>
-
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => void loadVocabs()}
-              disabled={loading}
-              style={{
-                whiteSpace: "nowrap",
-              }}
-            >
-              {loading ? "Loading..." : "Refresh"}
-            </button>
           </div>
 
           {error ? (
-            <div
+            <p
               style={{
-                padding: "0.9rem 1rem",
-                borderRadius: "1rem",
-                background: "#ffe9e9",
-                color: "#8a1f1f",
-                fontWeight: 700,
-                marginBottom: "1rem",
+                margin: "0 0 14px",
+                color: "#9b3c50",
+                fontWeight: 800,
               }}
             >
               {error}
-            </div>
+            </p>
           ) : null}
 
-          <div className="saved-words-scroll">
-            {vocabs.length === 0 && !loading ? (
-              <div
-                style={{
-                  padding: "2rem",
-                  borderRadius: "1.2rem",
-                  background: "rgba(255, 255, 255, 0.72)",
-                  textAlign: "center",
-                  fontWeight: 800,
-                  opacity: 0.7,
-                }}
-              >
-                No words yet.
-              </div>
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              paddingRight: "10px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            {sortedCollections.length === 0 && !loading ? (
+              <p className="empty-state">
+                No collections yet. Create your first collection on the left.
+              </p>
             ) : null}
 
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.85rem",
-              }}
-            >
-              {vocabs.map((vocab) => (
+            {sortedCollections.map((collection) => {
+              const count = wordCounts[collection.id] ?? 0;
+              const isEditing = editingId === collection.id;
+
+              return (
                 <article
-                  key={vocab.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr auto auto",
-                    gap: "0.75rem",
-                    alignItems: "center",
-                    padding: "1rem 1.1rem",
-                    borderRadius: "1.1rem",
-                    border: "2px solid rgba(108, 91, 55, 0.12)",
-                    background: "rgba(255, 251, 242, 0.86)",
-                  }}
+                  key={collection.id}
+                  className={
+                    isEditing ? "word-item word-item-editing" : "word-item"
+                  }
                 >
-                  <div
-                    style={{
-                      minWidth: 0,
-                    }}
-                  >
-                    <h2
-                      style={{
-                        margin: "0 0 0.25rem",
-                        fontSize: "1.15rem",
-                      }}
-                    >
-                      {vocab.german}
-                    </h2>
+                  <div className="word-content">
+                    <strong>{collection.name}</strong>
 
-                    <p
-                      style={{
-                        margin: 0,
-                        opacity: 0.7,
-                        fontWeight: 650,
-                        overflowWrap: "anywhere",
-                      }}
-                    >
-                      {vocab.vietnamese}
-                    </p>
+                    <span>
+                      {collection.description?.trim()
+                        ? collection.description
+                        : "No description"}
+                    </span>
 
-                    {vocab.topic ? (
-                      <p
-                        style={{
-                          margin: "0.35rem 0 0",
-                          opacity: 0.55,
-                          fontSize: "0.85rem",
-                          fontWeight: 700,
-                        }}
-                      >
-                        Topic: {vocab.topic}
-                      </p>
-                    ) : null}
+                    <small>
+                      {count} {count === 1 ? "word" : "words"} saved
+                    </small>
+
+                    <small>
+                      Created:{" "}
+                      {new Date(collection.created_at).toLocaleDateString("de-DE")}
+                    </small>
                   </div>
 
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => handleEdit(vocab)}
-                    style={{
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    ✏️ Edit
-                  </button>
+                  <div className="word-actions">
+                    <button
+                      type="button"
+                      className="word-action-btn edit-btn"
+                      onClick={() => handleEdit(collection)}
+                    >
+                      <span className="btn-icon">✏️</span>
+                      Edit
+                    </button>
 
-                  <button
-                    type="button"
-                    className="danger-button"
-                    onClick={() => void handleDelete(vocab.id)}
-                    aria-label={`Delete ${vocab.german}`}
-                  >
-                    🗑️
-                  </button>
+                    <button
+                      type="button"
+                      className="word-action-btn delete-btn"
+                      onClick={() => void handleDelete(collection)}
+                      aria-label={`Delete ${collection.name}`}
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </article>
-              ))}
-            </div>
+              );
+            })}
           </div>
         </section>
       </section>
