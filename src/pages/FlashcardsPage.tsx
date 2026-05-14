@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getVocabs, updateVocab } from "../api/client";
-import type { Vocab } from "../types";
+import {
+  createCollection,
+  getCollections,
+  getVocabs,
+  updateVocab,
+} from "../api/client";
+import CollectionPicker from "../components/CollectionPicker";
+import type { Collection, Vocab } from "../types";
 
 type FlashcardDirection = "german-to-meaning" | "meaning-to-german";
 
@@ -61,6 +67,13 @@ function isInDateRange(
 }
 
 function FlashcardsPage() {
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collectionsLoaded, setCollectionsLoaded] = useState(false);
+  const [collectionError, setCollectionError] = useState("");
+  const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(
+    null
+  );
+
   const [vocabs, setVocabs] = useState<Vocab[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -78,20 +91,100 @@ function FlashcardsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const activeCollection = useMemo(() => {
+    return (
+      collections.find((collection) => collection.id === selectedCollectionId) ??
+      null
+    );
+  }, [collections, selectedCollectionId]);
+
+  const resetCardState = () => {
+    setCurrentIndex(0);
+    setIsRevealed(false);
+  };
+
+  const resetFilters = () => {
+    setSearchText("");
+    setSelectedTopic("all");
+    setShowStarredOnly(false);
+    setFromDate("");
+    setToDate("");
+    resetCardState();
+  };
+
+  const loadCollections = useCallback(async (): Promise<void> => {
+    try {
+      setCollectionError("");
+
+      const data = await getCollections();
+
+      setCollections(data);
+      setCollectionsLoaded(true);
+
+      setSelectedCollectionId((currentId) => {
+        if (currentId !== null) {
+          const currentStillExists = data.some(
+            (collection) => collection.id === currentId
+          );
+
+          if (currentStillExists) {
+            return currentId;
+          }
+        }
+
+        const germanVocabCollection = data.find(
+          (collection) => collection.name.toLowerCase() === "german vocab"
+        );
+
+        if (germanVocabCollection) {
+          return germanVocabCollection.id;
+        }
+
+        return data.length > 0 ? data[0].id : null;
+      });
+    } catch (err) {
+      console.error(err);
+      setCollectionsLoaded(true);
+      setCollectionError("Could not load collections.");
+    }
+  }, []);
+
   const loadVocabs = useCallback(async (): Promise<void> => {
+    if (!selectedCollectionId) {
+      setVocabs([]);
+      setError("");
+      resetCardState();
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
 
-      const data = await getVocabs();
+      const data = await getVocabs({
+        collectionId: selectedCollectionId,
+      });
+
       setVocabs(data);
+      setCurrentIndex(0);
+      setIsRevealed(false);
     } catch (err) {
       console.error(err);
       setError("Could not load flashcards. Please check the backend.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedCollectionId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadCollections();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadCollections]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -102,6 +195,26 @@ function FlashcardsPage() {
       window.clearTimeout(timer);
     };
   }, [loadVocabs]);
+
+  useEffect(() => {
+    resetFilters();
+  }, [selectedCollectionId]);
+
+  const selectCollection = (collectionId: string) => {
+    setSelectedCollectionId(collectionId ? Number(collectionId) : null);
+  };
+
+  const createNewCollection = async (data: {
+    name: string;
+    description?: string;
+  }) => {
+    const collection = await createCollection(data);
+
+    await loadCollections();
+    setSelectedCollectionId(collection.id);
+
+    return collection;
+  };
 
   const topicOptions = useMemo(() => {
     const uniqueTopics = new Set<string>();
@@ -164,11 +277,6 @@ function FlashcardsPage() {
   const backLabel =
     direction === "german-to-meaning" ? "Meaning" : "German";
 
-  const resetCardState = () => {
-    setCurrentIndex(0);
-    setIsRevealed(false);
-  };
-
   const handlePrevious = () => {
     if (filteredVocabs.length === 0) {
       return;
@@ -200,12 +308,7 @@ function FlashcardsPage() {
   };
 
   const handleClearFilters = () => {
-    setSearchText("");
-    setSelectedTopic("all");
-    setShowStarredOnly(false);
-    setFromDate("");
-    setToDate("");
-    resetCardState();
+    resetFilters();
   };
 
   const handleToggleStar = async (vocab: Vocab) => {
@@ -228,7 +331,7 @@ function FlashcardsPage() {
         vietnamese: vocab.vietnamese,
         examples: vocab.examples ?? "",
         topic: vocab.topic ?? null,
-        collection_id: vocab.collection_id ?? null,
+        collection_id: vocab.collection_id ?? selectedCollectionId,
         is_starred: nextStarredValue,
       });
     } catch (err) {
@@ -251,8 +354,31 @@ function FlashcardsPage() {
 
   return (
     <main className="flashcards-page-with-picker">
+      <CollectionPicker
+        label="Flashcards"
+        title="Choose Your Collection"
+        description="Select a vocabulary collection and practice its cards directly."
+        collections={collections}
+        selectedCollectionId={selectedCollectionId}
+        collectionError={collectionError}
+        onSelectCollection={selectCollection}
+        onCreateCollection={createNewCollection}
+      />
+
+      {!selectedCollectionId && collectionsLoaded && collections.length === 0 ? (
+        <div className="cute-card empty-state-card">
+          <h2>Create your first collection</h2>
+          <p>
+            Use the collection drawer to create a vocabulary collection first.
+            Then add words in Word Book to practice flashcards.
+          </p>
+        </div>
+      ) : null}
+
       <section className="cute-card flashcards-practice-header">
-        <span className="badge">German Vocab</span>
+        <span className="badge">
+          {activeCollection ? activeCollection.name : "No Collection"}
+        </span>
 
         <div className="flashcards-title-row">
           <div>
@@ -267,7 +393,7 @@ function FlashcardsPage() {
             type="button"
             className="cute-button soft"
             onClick={() => void loadVocabs()}
-            disabled={loading}
+            disabled={loading || !selectedCollectionId}
           >
             {loading ? "Loading..." : "Refresh"}
           </button>
@@ -349,7 +475,9 @@ function FlashcardsPage() {
 
           <button
             type="button"
-            className={showStarredOnly ? "cute-button primary" : "cute-button soft"}
+            className={
+              showStarredOnly ? "cute-button primary" : "cute-button soft"
+            }
             onClick={() => {
               setShowStarredOnly((currentValue) => !currentValue);
               resetCardState();
@@ -380,11 +508,18 @@ function FlashcardsPage() {
           Showing {filteredVocabs.length} / {vocabs.length} cards
         </div>
 
-        {error ? <p className="collection-error">{error}</p> : null}
+        {error || collectionError ? (
+          <p className="collection-error">{error || collectionError}</p>
+        ) : null}
       </section>
 
       <section className="single-card-study">
-        {activeVocab ? (
+        {!selectedCollectionId ? (
+          <div className="cute-card empty-deck">
+            <h3>No collection selected</h3>
+            <p>Please choose a collection from the collection drawer.</p>
+          </div>
+        ) : activeVocab ? (
           <>
             <div className="study-progress-row">
               <span className="study-counter">
@@ -448,9 +583,7 @@ function FlashcardsPage() {
 
                   <h3>{isRevealed ? backText : frontText}</h3>
 
-                  <small>
-                    {isRevealed ? "Tap to hide" : "Tap to reveal"}
-                  </small>
+                  <small>{isRevealed ? "Tap to hide" : "Tap to reveal"}</small>
 
                   {activeVocab.topic ? (
                     <span className="flashcard-topic-pill">
