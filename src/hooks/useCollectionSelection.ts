@@ -4,6 +4,12 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { createCollection, getCollections } from "../api/client";
 import type { Collection } from "../types";
 
+type CreateCollectionPayload = {
+  name: string;
+  description?: string;
+  icon?: string;
+};
+
 export function useCollectionSelection(basePath: string) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -78,10 +84,7 @@ export function useCollectionSelection(basePath: string) {
     navigate(`${basePath}?collectionId=${collectionId}`);
   }
 
-  async function createNewCollection(data: {
-    name: string;
-    description?: string;
-  }) {
+  async function createNewCollection(data: CreateCollectionPayload) {
     const created = await createCollection(data);
     const updatedCollections = await loadCollections();
 

@@ -2,6 +2,7 @@ export interface Collection {
   id: number;
   name: string;
   description?: string | null;
+  icon?: string | null;
   created_at: string;
 }
 

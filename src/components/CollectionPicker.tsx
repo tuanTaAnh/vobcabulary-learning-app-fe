@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import CuteButton from "./CuteButton";
@@ -15,8 +15,31 @@ type Props = {
   onCreateCollection: (data: {
     name: string;
     description?: string;
+    icon?: string;
   }) => Promise<unknown>;
 };
+
+const collectionIconOptions = [
+  "📚",
+  "🇩🇪",
+  "🇬🇧",
+  "✈️",
+  "🍽️",
+  "💼",
+  "🎓",
+  "🧠",
+  "⭐",
+  "🏠",
+  "🛒",
+  "🚆",
+  "📝",
+  "📖",
+  "🔥",
+];
+
+function getCollectionIcon(collection: Collection | null | undefined): string {
+  return collection?.icon?.trim() || "📚";
+}
 
 function CollectionPicker({
   label,
@@ -29,19 +52,49 @@ function CollectionPicker({
   onCreateCollection,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isCollectionListOpen, setIsCollectionListOpen] = useState(false);
+  const [collectionSearch, setCollectionSearch] = useState("");
+
+  const [newCollectionIcon, setNewCollectionIcon] = useState("📚");
   const [newCollectionName, setNewCollectionName] = useState("");
   const [newCollectionDescription, setNewCollectionDescription] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const activeCollection = collections.find(
-    (collection) => collection.id === selectedCollectionId
-  );
+  const activeCollection =
+    collections.find((collection) => collection.id === selectedCollectionId) ??
+    null;
 
-  useEffect(() => {
-    if (collections.length === 0) {
-      setIsOpen(true);
+  const filteredCollections = useMemo(() => {
+    const keyword = collectionSearch.trim().toLowerCase();
+
+    if (!keyword) {
+      return collections;
     }
-  }, [collections.length]);
+
+    return collections.filter((collection) => {
+      const name = collection.name.toLowerCase();
+      const description = collection.description?.toLowerCase() ?? "";
+      const icon = collection.icon?.toLowerCase() ?? "";
+
+      return (
+        name.includes(keyword) ||
+        description.includes(keyword) ||
+        icon.includes(keyword)
+      );
+    });
+  }, [collections, collectionSearch]);
+
+  const closeDrawer = () => {
+    setIsOpen(false);
+    setIsCollectionListOpen(false);
+    setCollectionSearch("");
+  };
+
+  const handleSelectCollection = (collectionId: number) => {
+    onSelectCollection(String(collectionId));
+    setIsCollectionListOpen(false);
+    setCollectionSearch("");
+  };
 
   async function handleCreateCollection(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,10 +110,14 @@ function CollectionPicker({
       await onCreateCollection({
         name: newCollectionName.trim(),
         description: newCollectionDescription.trim() || undefined,
+        icon: newCollectionIcon,
       });
 
       setNewCollectionName("");
       setNewCollectionDescription("");
+      setNewCollectionIcon("📚");
+      setIsCollectionListOpen(false);
+      setCollectionSearch("");
     } catch {
       alert("Could not create collection. Please check the backend.");
     } finally {
@@ -82,14 +139,14 @@ function CollectionPicker({
         </strong>
       </button>
 
-      {isOpen && (
+      {isOpen ? (
         <button
           className="collection-drawer-backdrop"
           type="button"
-          onClick={() => setIsOpen(false)}
+          onClick={closeDrawer}
           aria-label="Close collection drawer"
         />
-      )}
+      ) : null}
 
       <aside
         className={`collection-drawer ${isOpen ? "is-open" : ""}`}
@@ -104,7 +161,7 @@ function CollectionPicker({
           <button
             className="collection-drawer-close"
             type="button"
-            onClick={() => setIsOpen(false)}
+            onClick={closeDrawer}
             aria-label="Close collection drawer"
           >
             ×
@@ -113,27 +170,97 @@ function CollectionPicker({
 
         <p className="collection-drawer-description">{description}</p>
 
-        {collectionError && (
+        {collectionError ? (
           <p className="collection-error">{collectionError}</p>
-        )}
+        ) : null}
 
-        <label className="collection-select-label">
-          Current Collection
-          <select
-            value={selectedCollectionId || ""}
-            onChange={(e) => onSelectCollection(e.target.value)}
+        <div className="collection-combobox">
+          <span className="collection-combobox-label">Current Collection</span>
+
+          <button
+            type="button"
+            className="collection-combobox-trigger"
+            onClick={() => setIsCollectionListOpen((prev) => !prev)}
           >
-            {collections.length === 0 && (
-              <option value="">No collection yet</option>
-            )}
+            <span className="collection-combobox-current">
+              <span className="collection-combobox-icon">
+                {getCollectionIcon(activeCollection)}
+              </span>
 
-            {collections.map((collection) => (
-              <option value={collection.id} key={collection.id}>
-                {collection.name}
-              </option>
-            ))}
-          </select>
-        </label>
+              <span>
+                {activeCollection ? activeCollection.name : "Choose collection"}
+              </span>
+            </span>
+
+            <span
+              className={
+                isCollectionListOpen
+                  ? "collection-combobox-arrow is-open"
+                  : "collection-combobox-arrow"
+              }
+            >
+              ⌄
+            </span>
+          </button>
+
+          {isCollectionListOpen ? (
+            <div className="collection-combobox-menu">
+              <div className="collection-search-box">
+                <span aria-hidden="true">🔍</span>
+
+                <input
+                  value={collectionSearch}
+                  onChange={(e) => setCollectionSearch(e.target.value)}
+                  placeholder="Search collection..."
+                  autoFocus
+                />
+              </div>
+
+              <div className="collection-option-list">
+                {filteredCollections.length > 0 ? (
+                  filteredCollections.map((collection) => {
+                    const isSelected = collection.id === selectedCollectionId;
+
+                    return (
+                      <button
+                        key={collection.id}
+                        type="button"
+                        className={
+                          isSelected
+                            ? "collection-option is-selected"
+                            : "collection-option"
+                        }
+                        onClick={() => handleSelectCollection(collection.id)}
+                      >
+                        <span className="collection-option-left">
+                          <span className="collection-option-icon">
+                            {getCollectionIcon(collection)}
+                          </span>
+
+                          <span className="collection-option-text">
+                            <strong>{collection.name}</strong>
+
+                            {collection.description ? (
+                              <small>{collection.description}</small>
+                            ) : null}
+                          </span>
+                        </span>
+
+                        {isSelected ? (
+                          <span className="collection-option-check">✓</span>
+                        ) : null}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="collection-empty-result">
+                    No collection found.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
 
         <Link className="cute-link soft drawer-manage-link" to="/collections">
           Manage Collections
@@ -141,8 +268,33 @@ function CollectionPicker({
 
         <div className="drawer-divider" />
 
-        <form className="drawer-collection-form" onSubmit={handleCreateCollection}>
+        <form
+          className="drawer-collection-form"
+          onSubmit={handleCreateCollection}
+        >
           <h3>Add New Collection</h3>
+
+          <div className="collection-icon-picker">
+            <span className="collection-icon-picker-label">Choose Icon</span>
+
+            <div className="collection-icon-grid">
+              {collectionIconOptions.map((icon) => (
+                <button
+                  key={icon}
+                  type="button"
+                  className={
+                    newCollectionIcon === icon
+                      ? "collection-icon-choice is-selected"
+                      : "collection-icon-choice"
+                  }
+                  onClick={() => setNewCollectionIcon(icon)}
+                  aria-label={`Choose icon ${icon}`}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <input
             value={newCollectionName}

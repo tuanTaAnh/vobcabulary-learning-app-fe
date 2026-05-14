@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
 import {
   createCollection,
   deleteCollection,
@@ -12,16 +11,55 @@ import type { Collection } from "../types";
 type CollectionForm = {
   name: string;
   description: string;
+  icon: string;
+};
+
+type SubmitEventLike = {
+  preventDefault: () => void;
 };
 
 const emptyForm: CollectionForm = {
   name: "",
   description: "",
+  icon: "📚",
 };
+
+const collectionIconOptions = [
+  "📚",
+  "🇩🇪",
+  "🇬🇧",
+  "✈️",
+  "🍽️",
+  "💼",
+  "🎓",
+  "🧠",
+  "⭐",
+  "🏠",
+  "🛒",
+  "🚆",
+  "📝",
+  "📖",
+  "🔥",
+];
+
+function getCollectionIcon(icon: string | null | undefined): string {
+  return icon?.trim() || "📚";
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown date";
+  }
+
+  return new Intl.DateTimeFormat("vi-VN").format(date);
+}
 
 function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [wordCounts, setWordCounts] = useState<Record<number, number>>({});
+
   const [form, setForm] = useState<CollectionForm>(emptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -33,45 +71,51 @@ function CollectionsPage() {
     return Object.values(wordCounts).reduce((total, count) => total + count, 0);
   }, [wordCounts]);
 
-  const sortedCollections = useMemo(() => {
-    return [...collections].sort((a, b) => a.name.localeCompare(b.name));
-  }, [collections]);
-
   const loadCollections = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
       setError("");
 
-      const collectionData = await getCollections();
-      setCollections(collectionData);
+      const data = await getCollections();
+      setCollections(data);
 
-      const countEntries = await Promise.all(
-        collectionData.map(async (collection) => {
+      const counts = await Promise.all(
+        data.map(async (collection) => {
           try {
             const vocabs = await getVocabs({
               collectionId: collection.id,
             });
 
             return [collection.id, vocabs.length] as const;
-          } catch (err) {
-            console.error(err);
+          } catch {
             return [collection.id, 0] as const;
           }
         })
       );
 
-      setWordCounts(Object.fromEntries(countEntries));
+      setWordCounts(Object.fromEntries(counts));
     } catch (err) {
       console.error(err);
-      setError("Could not load collections. Please check the backend.");
+      setError("Could not load collections.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadCollections();
+    const timer = window.setTimeout(() => {
+      void loadCollections();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [loadCollections]);
+
+  const resetForm = () => {
+    setForm(emptyForm);
+    setEditingId(null);
+  };
 
   const updateFormField = (field: keyof CollectionForm, value: string) => {
     setForm((currentForm) => ({
@@ -80,16 +124,12 @@ function CollectionsPage() {
     }));
   };
 
-  const resetForm = () => {
-    setForm(emptyForm);
-    setEditingId(null);
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: SubmitEventLike) => {
     event.preventDefault();
 
     const name = form.name.trim();
     const description = form.description.trim();
+    const icon = form.icon.trim() || "📚";
 
     if (!name) {
       alert("Please enter a collection name.");
@@ -102,12 +142,14 @@ function CollectionsPage() {
       if (editingId) {
         await updateCollection(editingId, {
           name,
-          description: description || undefined,
+          description: description || null,
+          icon,
         });
       } else {
         await createCollection({
           name,
           description: description || undefined,
+          icon,
         });
       }
 
@@ -115,7 +157,7 @@ function CollectionsPage() {
       await loadCollections();
     } catch (err) {
       console.error(err);
-      alert("Could not save collection. Please check the backend.");
+      alert("Could not save this collection. Please check the backend.");
     } finally {
       setSaving(false);
     }
@@ -127,6 +169,7 @@ function CollectionsPage() {
     setForm({
       name: collection.name ?? "",
       description: collection.description ?? "",
+      icon: getCollectionIcon(collection.icon),
     });
   };
 
@@ -135,7 +178,7 @@ function CollectionsPage() {
 
     const confirmed = window.confirm(
       count > 0
-        ? `Delete "${collection.name}"? This collection has ${count} saved words.`
+        ? `Delete "${collection.name}"? Its ${count} words will stay saved but will no longer belong to this collection.`
         : `Delete "${collection.name}"?`
     );
 
@@ -153,35 +196,13 @@ function CollectionsPage() {
       await loadCollections();
     } catch (err) {
       console.error(err);
-      alert(
-        "Could not delete this collection. It may still contain saved words, or the backend blocked deletion."
-      );
+      alert("Could not delete this collection. Please check the backend.");
     }
   };
 
   return (
     <main className="collections-page">
-      <section className="cute-card page-header-card">
-        <div>
-          <span className="badge">Collections</span>
-          <h2>Manage Vocabulary Collections</h2>
-          <p>
-            Create, edit, and organize your vocabulary collections for Word Book,
-            Flashcards, and Quiz.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="cute-button soft"
-          onClick={() => void loadCollections()}
-          disabled={loading}
-        >
-          {loading ? "Loading..." : "Refresh"}
-        </button>
-      </section>
-
-      <section className="stats-grid" style={{ marginBottom: "16px" }}>
+      <section className="stats-grid">
         <article className="cute-card stat-card">
           <span className="stat-icon">📚</span>
           <small>Total Collections</small>
@@ -207,20 +228,49 @@ function CollectionsPage() {
         </article>
       </section>
 
-      <section className="page-grid">
+      <section className="page-grid wordbook-grid">
         <section className="cute-card form-card">
           <span className="badge">
             {editingId ? "Edit Collection" : "New Collection"}
           </span>
 
-          <h2>{editingId ? "Update Collection" : "Add a Collection"}</h2>
+          <h2>{editingId ? "Edit Collection" : "Add a Collection"}</h2>
 
-          <form className="cute-form" onSubmit={handleSubmit}>
+          <form
+            className="cute-form"
+            onSubmit={(event) => {
+              void handleSubmit(event);
+            }}
+          >
+            <div className="collection-icon-picker">
+              <span className="collection-icon-picker-label">Choose Icon</span>
+
+              <div className="collection-icon-grid">
+                {collectionIconOptions.map((icon) => (
+                  <button
+                    key={icon}
+                    type="button"
+                    className={
+                      form.icon === icon
+                        ? "collection-icon-choice is-selected"
+                        : "collection-icon-choice"
+                    }
+                    onClick={() => updateFormField("icon", icon)}
+                    aria-label={`Choose icon ${icon}`}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <label>
               Collection Name
               <input
                 value={form.name}
-                onChange={(event) => updateFormField("name", event.target.value)}
+                onChange={(event) =>
+                  updateFormField("name", event.target.value)
+                }
                 placeholder="e.g. Travel German"
               />
             </label>
@@ -233,13 +283,14 @@ function CollectionsPage() {
                   updateFormField("description", event.target.value)
                 }
                 placeholder="Short note about this collection..."
-                style={{
-                  minHeight: "120px",
-                }}
               />
             </label>
 
-            <button type="submit" className="cute-button primary" disabled={saving}>
+            <button
+              type="submit"
+              className="cute-button primary"
+              disabled={saving}
+            >
               {saving
                 ? "Saving..."
                 : editingId
@@ -259,105 +310,67 @@ function CollectionsPage() {
           </form>
         </section>
 
-        <section
-          className="cute-card"
-          style={{
-            minHeight: "520px",
-            maxHeight: "calc(100vh - 220px)",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              flex: "0 0 auto",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: "16px",
-              marginBottom: "16px",
-            }}
-          >
-            <div>
-              <span className="badge">Saved Collections</span>
-              <h2
-                style={{
-                  margin: "6px 0 6px",
-                  fontSize: "26px",
-                }}
+        <section className="cute-card saved-words-panel">
+          <div className="saved-words-header">
+            <span className="badge">Saved Collections</span>
+
+            <div className="saved-words-title-row">
+              <div className="saved-words-title-block">
+                <h2>Your Collections</h2>
+
+                <p className="saved-words-collection">
+                  {loading
+                    ? "Loading collections..."
+                    : `Showing ${collections.length} collections`}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="cute-button soft saved-refresh-btn"
+                onClick={() => void loadCollections()}
+                disabled={loading}
               >
-                Your Collections
-              </h2>
-              <p
-                style={{
-                  margin: 0,
-                  color: "var(--muted)",
-                  fontWeight: 800,
-                }}
-              >
-                Showing {sortedCollections.length} collections
-              </p>
+                {loading ? "Loading..." : "Refresh"}
+              </button>
             </div>
+
+            {error ? <p className="saved-words-error">{error}</p> : null}
           </div>
 
-          {error ? (
-            <p
-              style={{
-                margin: "0 0 14px",
-                color: "#9b3c50",
-                fontWeight: 800,
-              }}
-            >
-              {error}
-            </p>
-          ) : null}
-
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflowY: "auto",
-              paddingRight: "10px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-            }}
-          >
-            {sortedCollections.length === 0 && !loading ? (
-              <p className="empty-state">
-                No collections yet. Create your first collection on the left.
-              </p>
+          <div className="saved-words-scroll">
+            {collections.length === 0 && !loading ? (
+              <p className="empty-state">No collections yet.</p>
             ) : null}
 
-            {sortedCollections.map((collection) => {
+            {collections.map((collection) => {
               const count = wordCounts[collection.id] ?? 0;
-              const isEditing = editingId === collection.id;
 
               return (
                 <article
                   key={collection.id}
                   className={
-                    isEditing ? "word-item word-item-editing" : "word-item"
+                    editingId === collection.id
+                      ? "word-item word-item-editing"
+                      : "word-item"
                   }
                 >
                   <div className="word-content">
-                    <strong>{collection.name}</strong>
+                    <strong className="collection-title-with-icon">
+                      <span className="collection-card-icon">
+                        {getCollectionIcon(collection.icon)}
+                      </span>
 
-                    <span>
-                      {collection.description?.trim()
-                        ? collection.description
-                        : "No description"}
-                    </span>
+                      {collection.name}
+                    </strong>
+
+                    <span>{collection.description || "No description"}</span>
 
                     <small>
                       {count} {count === 1 ? "word" : "words"} saved
                     </small>
 
-                    <small>
-                      Created:{" "}
-                      {new Date(collection.created_at).toLocaleDateString("de-DE")}
-                    </small>
+                    <small>Created: {formatDate(collection.created_at)}</small>
                   </div>
 
                   <div className="word-actions">

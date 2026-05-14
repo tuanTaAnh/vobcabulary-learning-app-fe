@@ -40,6 +40,7 @@ export function getCollections() {
 export function createCollection(data: {
   name: string;
   description?: string;
+  icon?: string;
 }) {
   return request<Collection>("/collections", {
     method: "POST",
@@ -51,7 +52,8 @@ export function updateCollection(
   id: number,
   data: {
     name?: string;
-    description?: string;
+    description?: string | null;
+    icon?: string | null;
   }
 ) {
   return request<Collection>(`/collections/${id}`, {
