@@ -7,6 +7,132 @@ import CuteButton from "../components/CuteButton";
 import { useCollectionSelection } from "../hooks/useCollectionSelection";
 import type { McqQuestion, Vocab } from "../types";
 
+type McqQuestionWithAnswerId = McqQuestion & {
+  answer_id?: number;
+};
+
+const quizIcons = [
+  "🚆",
+  "✈️",
+  "🚌",
+  "🚗",
+  "🚲",
+  "🚕",
+  "🚢",
+  "🚇",
+  "🚋",
+  "🛴",
+
+  "🏠",
+  "🏫",
+  "🏢",
+  "🏥",
+  "🏨",
+  "🏪",
+  "🏦",
+  "🏡",
+  "🛏️",
+  "🚪",
+
+  "🍎",
+  "🍞",
+  "🥕",
+  "🥔",
+  "🍰",
+  "☕",
+  "🍽️",
+  "🥛",
+  "🍌",
+  "🍕",
+
+  "🐶",
+  "🐱",
+  "🐟",
+"🦋", // Butterfly / nature
+"🐠", // Fish / animals
+"🐝", // Bee / nature
+"🐢", // Turtle / animals
+"🦊", // Fox / animals
+"🐰", // Rabbit / animals
+"🐻", // Bear / animals
+"🐼", // Panda / animals
+  "🐴",
+  "🌳",
+  "🌻",
+  "🌧️",
+  "☀️",
+  "🌍",
+
+  "📚",
+  "✏️",
+  "📝",
+  "💬",
+  "🎓",
+  "🧠",
+  "🔥",
+  "🎯",
+  "🔎",
+
+  "💼",
+  "💻",
+  "📄",
+  "📞",
+  "📧",
+  "⚖️",
+  "💶",
+  "🛒",
+  "🧺",
+  "🕒",
+
+  "👨‍👩‍👧",
+  "👕",
+  "👟",
+  "🎵",
+  "🎬",
+  "⚽",
+  "🎮",
+  "🎁",
+  "🗺️",
+  "🧳",
+
+    "💎", // Premium / valuable
+    "🏆", // Achievement
+    "🎖️", // Award
+    "✨", // Highlight
+    "✅", // Completed / important
+    "📌", // Pinned / important
+    "🔔", // Reminder
+    "🎯", // Target
+];
+
+function getRandomQuizIcon(previousIcon?: string): string {
+  if (quizIcons.length === 0) {
+    return "🚆";
+  }
+
+  if (quizIcons.length === 1) {
+    return quizIcons[0];
+  }
+
+  let nextIcon = quizIcons[Math.floor(Math.random() * quizIcons.length)];
+
+  while (previousIcon && nextIcon === previousIcon) {
+    nextIcon = quizIcons[Math.floor(Math.random() * quizIcons.length)];
+  }
+
+  return nextIcon;
+}
+
+function getQuestionAnswerId(question: McqQuestion | null): number | undefined {
+  if (!question) {
+    return undefined;
+  }
+
+  const questionWithAnswerId = question as McqQuestionWithAnswerId;
+
+  return questionWithAnswerId.answer_id ?? question.vocab_id;
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) {
     return "Unknown date";
@@ -35,6 +161,8 @@ function MCQPage() {
   const [question, setQuestion] = useState<McqQuestion | null>(null);
   const [collectionVocabs, setCollectionVocabs] = useState<Vocab[]>([]);
 
+  const [questionIcon, setQuestionIcon] = useState(() => getRandomQuizIcon());
+
   const [selectedOption, setSelectedOption] = useState("");
   const [checked, setChecked] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -51,7 +179,7 @@ function MCQPage() {
       return null;
     }
 
-    const answerId = question.answer_id ?? question.vocab_id;
+    const answerId = getQuestionAnswerId(question);
 
     if (answerId) {
       const vocabById = collectionVocabs.find((vocab) => vocab.id === answerId);
@@ -131,6 +259,7 @@ function MCQPage() {
       });
 
       setQuestion(data);
+      setQuestionIcon((currentIcon) => getRandomQuizIcon(currentIcon));
     } catch {
       setQuestion(null);
       setError(
@@ -156,7 +285,7 @@ function MCQPage() {
 
     try {
       await recordMcq({
-        vocab_id: question.vocab_id ?? question.answer_id,
+        vocab_id: getQuestionAnswerId(question),
         correct,
       });
     } catch {
@@ -277,7 +406,7 @@ function MCQPage() {
             {question && (
               <>
                 <div className="question-bubble">
-                  <span>🚆</span>
+                  <span>{questionIcon}</span>
                   <h3>{question.question ?? question.prompt}</h3>
                 </div>
 
