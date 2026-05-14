@@ -18,18 +18,15 @@ function normalizeText(value: string | null | undefined): string {
   return toSafeString(value).trim().toLowerCase();
 }
 
-function formatDisplayDate(value: string | null | undefined): string {
+function splitExampleLines(value: string | null | undefined): string[] {
   if (!value) {
-    return "";
+    return [];
   }
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat("vi-VN").format(date);
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function isInDateRange(
@@ -77,6 +74,7 @@ function FlashcardsPage() {
   const [vocabs, setVocabs] = useState<Vocab[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRevealed, setIsRevealed] = useState(false);
+  const [examplesVocab, setExamplesVocab] = useState<Vocab | null>(null);
 
   const [direction, setDirection] = useState<FlashcardDirection>(
     "german-to-meaning"
@@ -98,9 +96,14 @@ function FlashcardsPage() {
     );
   }, [collections, selectedCollectionId]);
 
+  const exampleLines = useMemo(() => {
+    return splitExampleLines(examplesVocab?.examples);
+  }, [examplesVocab]);
+
   const resetCardState = () => {
     setCurrentIndex(0);
     setIsRevealed(false);
+    setExamplesVocab(null);
   };
 
   const resetFilters = () => {
@@ -153,7 +156,9 @@ function FlashcardsPage() {
     if (!selectedCollectionId) {
       setVocabs([]);
       setError("");
-      resetCardState();
+      setCurrentIndex(0);
+      setIsRevealed(false);
+      setExamplesVocab(null);
       return;
     }
 
@@ -168,6 +173,7 @@ function FlashcardsPage() {
       setVocabs(data);
       setCurrentIndex(0);
       setIsRevealed(false);
+      setExamplesVocab(null);
     } catch (err) {
       console.error(err);
       setError("Could not load flashcards. Please check the backend.");
@@ -283,6 +289,7 @@ function FlashcardsPage() {
     }
 
     setIsRevealed(false);
+    setExamplesVocab(null);
     setCurrentIndex((current) =>
       current === 0 ? filteredVocabs.length - 1 : current - 1
     );
@@ -294,6 +301,7 @@ function FlashcardsPage() {
     }
 
     setIsRevealed(false);
+    setExamplesVocab(null);
     setCurrentIndex((current) => (current + 1) % filteredVocabs.length);
   };
 
@@ -305,6 +313,7 @@ function FlashcardsPage() {
     const nextIndex = Math.floor(Math.random() * filteredVocabs.length);
     setCurrentIndex(nextIndex);
     setIsRevealed(false);
+    setExamplesVocab(null);
   };
 
   const handleClearFilters = () => {
@@ -408,6 +417,7 @@ function FlashcardsPage() {
             onClick={() => {
               setDirection("german-to-meaning");
               setIsRevealed(false);
+              setExamplesVocab(null);
             }}
           >
             German → Meaning
@@ -421,6 +431,7 @@ function FlashcardsPage() {
             onClick={() => {
               setDirection("meaning-to-german");
               setIsRevealed(false);
+              setExamplesVocab(null);
             }}
           >
             Meaning → German
@@ -583,17 +594,27 @@ function FlashcardsPage() {
 
                   <h3>{isRevealed ? backText : frontText}</h3>
 
-                  <small>{isRevealed ? "Tap to hide" : "Tap to reveal"}</small>
+                  {isRevealed &&
+                  splitExampleLines(activeVocab.examples).length > 0 ? (
+                    <button
+                      type="button"
+                      className="examples-open-btn flashcard-center-example-btn"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setExamplesVocab(activeVocab);
+                      }}
+                    >
+                      Example Sentences
+                    </button>
+                  ) : (
+                    <small>
+                      {isRevealed ? "Tap to hide" : "Tap to reveal"}
+                    </small>
+                  )}
 
                   {activeVocab.topic ? (
                     <span className="flashcard-topic-pill">
                       Topic: {activeVocab.topic}
-                    </span>
-                  ) : null}
-
-                  {activeVocab.created_at ? (
-                    <span className="flashcard-date-pill">
-                      Added: {formatDisplayDate(activeVocab.created_at)}
                     </span>
                   ) : null}
                 </div>
@@ -608,21 +629,6 @@ function FlashcardsPage() {
                 →
               </button>
             </div>
-
-            {activeVocab.examples ? (
-              <details className="cute-card flashcard-examples-box">
-                <summary>Example Sentences</summary>
-
-                <div>
-                  {activeVocab.examples
-                    .split("\n")
-                    .filter((line) => line.trim())
-                    .map((line, index) => (
-                      <p key={`${line}-${index}`}>{line}</p>
-                    ))}
-                </div>
-              </details>
-            ) : null}
           </>
         ) : (
           <div className="cute-card empty-deck">
@@ -633,6 +639,51 @@ function FlashcardsPage() {
           </div>
         )}
       </section>
+
+      {examplesVocab ? (
+        <div
+          className="examples-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Example sentences for ${examplesVocab.german}`}
+          onClick={() => setExamplesVocab(null)}
+        >
+          <section
+            className="examples-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="examples-modal-header">
+              <div>
+                <span className="badge">Example Sentences</span>
+                <h3>{examplesVocab.german}</h3>
+                <p>{examplesVocab.vietnamese}</p>
+              </div>
+
+              <button
+                type="button"
+                className="examples-modal-close"
+                onClick={() => setExamplesVocab(null)}
+                aria-label="Close example sentences"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="examples-modal-body">
+              {exampleLines.length > 0 ? (
+                exampleLines.map((line, index) => (
+                  <div className="example-line" key={`${line}-${index}`}>
+                    <span>{index + 1}</span>
+                    <p>{line}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="empty-state">No example sentences yet.</p>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

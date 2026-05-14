@@ -2574,3 +2574,103 @@ textarea {
     font-size: 24px;
   }
 }
+
+.flashcard-center-example-btn {
+  position: relative;
+  z-index: 5;
+  margin-top: 4px;
+  padding: 12px 22px;
+  border-radius: 999px;
+}
+
+.study-card-back .flashcard-center-example-btn {
+  background: #ffffff;
+  color: #3f6f35;
+  font-weight: 900;
+}
+
+.study-card-back .flashcard-center-example-btn:hover {
+  background: #eef7e8;
+}
+
+/* Compact Flashcards filter/header */
+
+.flashcards-practice-header {
+  padding: 14px 24px;
+  gap: 9px;
+  border-radius: 24px;
+}
+
+.flashcards-practice-header .badge {
+  margin-bottom: 2px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.flashcards-title-row {
+  align-items: center;
+  gap: 14px;
+}
+
+.flashcards-title-row h2 {
+  margin: 2px 0 3px;
+  font-size: 23px;
+  line-height: 1.12;
+}
+
+.flashcards-title-row p {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.flashcards-title-row .cute-button {
+  height: 38px;
+  padding: 7px 16px;
+  border-radius: 16px;
+}
+
+.flashcard-direction-toggle {
+  padding: 4px;
+  gap: 4px;
+}
+
+.flashcard-direction-toggle button {
+  height: 34px;
+  padding: 5px 10px;
+  font-size: 14px;
+}
+
+.flashcards-filter-grid {
+  grid-template-columns:
+    minmax(240px, 1.35fr)
+    minmax(150px, 0.8fr)
+    minmax(135px, 0.65fr)
+    minmax(135px, 0.65fr)
+    minmax(120px, max-content)
+    minmax(110px, max-content)
+    minmax(120px, max-content);
+  gap: 8px;
+}
+
+.flashcards-filter-grid input,
+.flashcards-filter-grid select,
+.flashcards-filter-grid .cute-button {
+  height: 38px;
+  min-height: 38px;
+  border-radius: 16px;
+  padding: 7px 12px;
+  font-size: 14px;
+}
+
+.flashcards-filter-grid .cute-button {
+  padding: 7px 14px;
+}
+
+.flashcard-filter-summary {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.flashcard-date-pill {
+  display: none;
+}
